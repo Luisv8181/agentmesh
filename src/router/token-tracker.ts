@@ -72,6 +72,9 @@ export class TokenTracker {
                   if (!line.trim()) continue;
                   try {
                     const obj = JSON.parse(line);
+                    const rawTime = obj.timestamp || obj.message?.timestamp || obj.created_at;
+                    if (!rawTime || new Date(rawTime) < todayStart) continue;
+
                     const usage = obj.message?.usage || obj.usage;
                     if (usage) {
                       liveInput += usage.input_tokens || 0;
