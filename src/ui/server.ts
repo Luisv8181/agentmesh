@@ -190,8 +190,8 @@ export function startUiServer(
       reject(err);
     });
 
-    server.listen(port, () => {
-      const url = `http://localhost:${port}`;
+    server.listen(port, '127.0.0.1', () => {
+      const url = `http://127.0.0.1:${port}`;
       resolve({
         server,
         port,
