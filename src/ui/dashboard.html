@@ -131,6 +131,60 @@
     <!-- Populated dynamically via JS / SSE -->
   </div>
 
+  <div class="section-title">Active AI Subscription Telemetry (Direct System Ingestion)</div>
+  <div class="agent-grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); margin-bottom: 25px;">
+    <!-- Claude Code Live Telemetry Card -->
+    <div class="agent-card" id="card-telemetry-claude">
+      <div class="card-top">
+        <div>
+          <div class="card-title">Claude Code (Anthropic)</div>
+          <div class="card-sub" id="claude-telemetry-sub">~/.claude/projects/ session logs</div>
+        </div>
+        <span class="status-pill pill-purple" id="claude-telemetry-model">claude-opus-5-5</span>
+      </div>
+      <div class="stats-row" style="margin-top:15px;">
+        <div>
+          <div class="stat-label">Active Tokens</div>
+          <div class="stat-val" style="color:var(--accent-cyan);" id="claude-today-tokens">--</div>
+        </div>
+        <div>
+          <div class="stat-label">Output Tokens</div>
+          <div class="stat-val" style="color:var(--accent-green);" id="claude-output-tokens">--</div>
+        </div>
+        <div>
+          <div class="stat-label">Cache Hits</div>
+          <div class="stat-val" style="color:var(--accent-amber);" id="claude-cache-tokens">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OpenAI Codex Live Telemetry Card -->
+    <div class="agent-card" id="card-telemetry-codex">
+      <div class="card-top">
+        <div>
+          <div class="card-title">OpenAI Codex (Desktop / CLI)</div>
+          <div class="card-sub" id="codex-telemetry-sub">~/.codex/state_5.sqlite database</div>
+        </div>
+        <span class="status-pill pill-green" id="codex-telemetry-model">gpt-6-astra</span>
+      </div>
+      <div class="stats-row" style="margin-top:15px;">
+        <div>
+          <div class="stat-label">Cumulative Tokens</div>
+          <div class="stat-val" style="color:var(--accent-cyan);" id="codex-today-tokens">--</div>
+        </div>
+        <div>
+          <div class="stat-label">Active Threads</div>
+          <div class="stat-val" style="color:var(--accent-green);" id="codex-threads-count">--</div>
+        </div>
+        <div>
+          <div class="stat-label">Status</div>
+          <div class="stat-val" style="color:var(--accent-purple);" id="codex-process-status">ONLINE</div>
+        </div>
+      </div>
+      <div id="codex-latest-title" style="font-size:11px; color:var(--text-muted); margin-top:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+    </div>
+  </div>
+
   <div class="bottom-split">
     <!-- Active Tasks Panel -->
     <div class="panel">
@@ -172,6 +226,29 @@
         state.metrics = data.metrics || {};
         state.tasks = data.tasks || [];
         state.safeMode = !!data.safeMode;
+
+        if (data.claudeLiveStats) {
+          const elToday = document.getElementById('claude-today-tokens');
+          const elOut = document.getElementById('claude-output-tokens');
+          const elCache = document.getElementById('claude-cache-tokens');
+          if (elToday) elToday.textContent = Number(data.claudeLiveStats.todayTokens || 0).toLocaleString();
+          if (elOut) elOut.textContent = Number(data.claudeLiveStats.totalOutputTokens || 0).toLocaleString();
+          if (elCache) elCache.textContent = Number(data.claudeLiveStats.cacheReadTokens || 0).toLocaleString();
+        }
+
+        if (data.codexLiveStats) {
+          const elToday = document.getElementById('codex-today-tokens');
+          const elThreads = document.getElementById('codex-threads-count');
+          const elModel = document.getElementById('codex-telemetry-model');
+          const elTitle = document.getElementById('codex-latest-title');
+          if (elToday) elToday.textContent = Number(data.codexLiveStats.tokensUsedToday || 0).toLocaleString();
+          if (elThreads) elThreads.textContent = data.codexLiveStats.activeThreads || 0;
+          if (elModel && data.codexLiveStats.model) elModel.textContent = data.codexLiveStats.model;
+          if (elTitle && data.codexLiveStats.latestThreadTitle) {
+            elTitle.textContent = 'Latest: ' + data.codexLiveStats.latestThreadTitle;
+          }
+        }
+
         renderAll();
       } catch (err) {
         console.error('Failed to load status:', err);

@@ -88,7 +88,8 @@ export function startUiServer(
           metrics: globalUsageMonitor.getAllMetrics(),
           tasks: taskStore.listTasks(),
           safeMode: selector.isSafeMode(),
-          claudeLiveStats: globalTokenTracker.readClaudeStats()
+          claudeLiveStats: globalTokenTracker.readClaudeStats(),
+          codexLiveStats: globalTokenTracker.readCodexStats()
         };
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(payload));

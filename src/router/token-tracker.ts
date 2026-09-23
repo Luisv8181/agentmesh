@@ -1,7 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { createRequire } from 'module';
 import { AgentId } from '../types.js';
+
+const require = createRequire(import.meta.url);
 
 export interface TokenUsageReport {
   estimatedPromptTokens: number;
@@ -11,6 +14,13 @@ export interface TokenUsageReport {
     totalInputTokens: number;
     totalOutputTokens: number;
     cacheReadTokens: number;
+  };
+  codexLiveStats?: {
+    model: string;
+    tokensUsedToday: number;
+    activeThreads: number;
+    latestThreadTitle?: string;
+    latestUpdateMs?: number;
   };
   ollamaLiveStats?: {
     lastPromptTokens: number;
@@ -142,12 +152,49 @@ export class TokenTracker {
   }
 
   /**
+   * Ingests real token usage and thread activity from local OpenAI Codex state
+   * (~/.codex/state_5.sqlite).
+   */
+  public readCodexStats(): TokenUsageReport['codexLiveStats'] | undefined {
+    try {
+      const codexDb = path.join(os.homedir(), '.codex', 'state_5.sqlite');
+      if (!fs.existsSync(codexDb)) return undefined;
+
+      const { DatabaseSync } = require('node:sqlite');
+      const db = new DatabaseSync(codexDb, { readOnly: true });
+
+      const todayStartMs = new Date().setHours(0, 0, 0, 0);
+      const stmt = db.prepare('SELECT id, title, model, tokens_used, updated_at_ms FROM threads WHERE updated_at_ms >= ? ORDER BY updated_at_ms DESC');
+      const rows = stmt.all(todayStartMs) as any[];
+      db.close();
+
+      if (!rows || rows.length === 0) return undefined;
+
+      let tokensUsedToday = 0;
+      for (const r of rows) {
+        tokensUsedToday += r.tokens_used || 0;
+      }
+
+      return {
+        model: rows[0]?.model || 'gpt-6-astra',
+        tokensUsedToday,
+        activeThreads: rows.length,
+        latestThreadTitle: rows[0]?.title ? String(rows[0].title).split('\n')[0].slice(0, 80) : undefined,
+        latestUpdateMs: rows[0]?.updated_at_ms
+      };
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
    * Constructs an explicit self-budgeting prompt header that instructs
    * the receiving AI agent how to self-regulate its output and token budget.
    */
   public buildTokenBudgetDirective(agentId: AgentId, prompt: string, maxOutputTokens = 4000): string {
     const estInput = this.estimateTokens(prompt);
     const claudeStats = agentId === 'claude' ? this.readClaudeStats() : undefined;
+    const codexStats = agentId === 'codex' ? this.readCodexStats() : undefined;
 
     let header = `[TOKEN BUDGET & CONTEXT TELEMETRY]\n` +
       `• Estimated Directive Tokens: ~${estInput.toLocaleString()}\n` +
@@ -155,6 +202,10 @@ export class TokenTracker {
 
     if (claudeStats && claudeStats.todayTokens > 0) {
       header += `• Today's Claude Cumulative Tokens: ~${claudeStats.todayTokens.toLocaleString()} tokens\n`;
+    }
+
+    if (codexStats && codexStats.tokensUsedToday > 0) {
+      header += `• Today's Codex Cumulative Tokens (${codexStats.model}): ~${codexStats.tokensUsedToday.toLocaleString()} tokens\n`;
     }
 
     header += `• Self-Regulation Rule: Prioritize concise, unified diffs and targeted code snippets. Do not output duplicate boilerplate or conversational filler.\n`;

@@ -154,10 +154,18 @@ test('TokenTracker estimates prompt tokens and reads Claude stats if present', a
   assert.ok(directive.includes('Recommended Max Output'));
 
   const stats = tracker.readClaudeStats();
-  // stats may be defined if ~/.claude/stats-cache.json exists on this machine
+  // stats may be defined if ~/.claude/stats-cache.json or project logs exist on this machine
   if (stats) {
     assert.ok(typeof stats.totalInputTokens === 'number');
     assert.ok(typeof stats.totalOutputTokens === 'number');
+  }
+
+  const codexStats = tracker.readCodexStats();
+  // codexStats may be defined if ~/.codex/state_5.sqlite exists on this machine
+  if (codexStats) {
+    assert.ok(typeof codexStats.tokensUsedToday === 'number');
+    assert.ok(typeof codexStats.activeThreads === 'number');
+    assert.ok(typeof codexStats.model === 'string');
   }
 });
 
