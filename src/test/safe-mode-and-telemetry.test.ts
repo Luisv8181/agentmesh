@@ -140,3 +140,23 @@ test('Live Local Ollama test execution (Zero subscriptions used)', async () => {
   assert.ok(res.output.trim().length > 0, 'Ollama returned output');
 });
 
+test('TokenTracker estimates prompt tokens and reads Claude stats if present', async () => {
+  const { TokenTracker } = await import('../router/token-tracker.js');
+  const tracker = new TokenTracker();
+
+  const est = tracker.estimateTokens('function add(a: number, b: number): number { return a + b; }');
+  assert.ok(est > 5 && est < 30);
+
+  const directive = tracker.buildTokenBudgetDirective('claude', 'Build authentication flow');
+  assert.ok(directive.includes('TOKEN BUDGET & CONTEXT TELEMETRY'));
+  assert.ok(directive.includes('Recommended Max Output'));
+
+  const stats = tracker.readClaudeStats();
+  // stats may be defined if ~/.claude/stats-cache.json exists on this machine
+  if (stats) {
+    assert.ok(typeof stats.totalInputTokens === 'number');
+    assert.ok(typeof stats.totalOutputTokens === 'number');
+  }
+});
+
+

@@ -12,4 +12,6 @@ export * from './adapters/gemini-adapter.js';
 export * from './adapters/opencode-adapter.js';
 export * from './adapters/ollama-adapter.js';
 export * from './router/usage-monitor.js';
+export * from './router/token-tracker.js';
 export * from './ui/server.js';
+

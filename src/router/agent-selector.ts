@@ -11,6 +11,7 @@ import { TaskStore } from '../state/task-store.js';
 import { HandoffProtocol } from '../state/handoff-protocol.js';
 import { GitCoordinator } from '../workspace/git-coordinator.js';
 import { globalUsageMonitor } from './usage-monitor.js';
+import { globalTokenTracker } from './token-tracker.js';
 import {
   AgentId,
   AgentStatus,
@@ -148,9 +149,18 @@ export class AgentSelector {
           `\n\nInstruction:\n${instruction}`;
       }
 
+      // Prepend self-monitoring token budget directive
+      const budgetHeader = globalTokenTracker.buildTokenBudgetDirective(agentId, promptToAgent);
+      promptToAgent = `${budgetHeader}\n${promptToAgent}`;
+
       const execStart = Date.now();
       const result = await adapter.execute(promptToAgent);
       const durationMs = Date.now() - execStart;
+
+      // Track estimated tokens
+      const estPromptTokens = globalTokenTracker.estimateTokens(promptToAgent);
+      const estCompletionTokens = globalTokenTracker.estimateTokens(result.output);
+      globalTokenTracker.recordUsage(agentId, estPromptTokens + estCompletionTokens);
 
       if (result.success && result.output.trim().length > 0) {
         // Success!

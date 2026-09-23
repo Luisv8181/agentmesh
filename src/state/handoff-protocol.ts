@@ -55,6 +55,12 @@ export class HandoffProtocol {
     } else {
       lines.push('  1. Review existing code and continue completing requirements.');
     }
+    lines.push('');
+
+    // Self-Monitoring Token Budgeting
+    lines.push('## Self-Monitoring & Token Budget Directive:');
+    lines.push('  • Target Output Allowance: ~2,500 tokens max for this step.');
+    lines.push('  • Output Efficiency: Return targeted unified diffs or concise explanations. Avoid repeating existing boilerplate.');
 
     lines.push('================================================================================');
     return lines.join('\n');

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { AgentSelector } from '../router/agent-selector.js';
 import { TaskStore } from '../state/task-store.js';
 import { globalUsageMonitor } from '../router/usage-monitor.js';
+import { globalTokenTracker } from '../router/token-tracker.js';
 import { AgentId } from '../types.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -86,7 +87,8 @@ export function startUiServer(
           agents: selector.getStatuses(),
           metrics: globalUsageMonitor.getAllMetrics(),
           tasks: taskStore.listTasks(),
-          safeMode: selector.isSafeMode()
+          safeMode: selector.isSafeMode(),
+          claudeLiveStats: globalTokenTracker.readClaudeStats()
         };
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(payload));
