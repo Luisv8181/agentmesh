@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 
-AgentMesh coordinates developer subscriptions and CLI agents (**Claude Code**, **OpenAI Codex**, **Google Gemini**, **OpenCode AI**, and **Local Ollama**) across a shared workspace.
+AgentMesh coordinates developer subscriptions and CLI agents (**Claude Code**, **OpenAI Codex**, **Google Antigravity CLI / agy**, **OpenCode AI**, **Google Gemini**, and **Local Ollama**) across a shared workspace.
 
 ```text
              ┌────────────────────┐
@@ -16,7 +16,7 @@ AgentMesh coordinates developer subscriptions and CLI agents (**Claude Code**, *
                        │
         ┌──────────────┼──────────────┐
         ↓              ↓              ↓
-   Claude Code       Codex       Gemini/Other
+   Claude Code    OpenAI Codex    Antigravity (agy)
         │              │              │
         └──────────────┼──────────────┘
                        ↓
@@ -49,6 +49,7 @@ AgentMesh is organized around five core modules:
 * **`adapters/`**: Headless CLI execution wrappers for:
   * **Claude Code** (`claude -p`)
   * **OpenAI Codex** (`codex exec --skip-git-repo-check -`)
+  * **Google Antigravity CLI** (`agy --non-interactive -p`)
   * **Google Gemini** (`gemini --skip-trust -p`)
   * **OpenCode AI** (`opencode run`)
   * **Local Ollama** (HTTP `:11434` offline fallback)

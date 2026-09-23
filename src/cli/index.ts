@@ -74,7 +74,7 @@ program
 program
   .command('run [instruction...]')
   .description('Execute work on the current task with automatic rate-limit failover and state handoffs')
-  .option('-a, --agent <agent>', 'Force a specific agent (claude, codex, gemini, opencode, ollama)')
+  .option('-a, --agent <agent>', 'Force a specific agent (claude, codex, agy, gemini, opencode, ollama)')
   .action(async (instructionParts, opts) => {
     const instruction = instructionParts.join(' ').trim();
     if (!instruction) {

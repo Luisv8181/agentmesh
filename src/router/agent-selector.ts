@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { BaseAdapter } from '../adapters/base-adapter.js';
 import { ClaudeAdapter } from '../adapters/claude-adapter.js';
 import { CodexAdapter } from '../adapters/codex-adapter.js';
+import { AgyAdapter } from '../adapters/agy-adapter.js';
 import { GeminiAdapter } from '../adapters/gemini-adapter.js';
 import { OpenCodeAdapter } from '../adapters/opencode-adapter.js';
 import { OllamaAdapter } from '../adapters/ollama-adapter.js';
@@ -33,11 +34,12 @@ export class AgentSelector {
     // Register built-in adapters
     this.register(new ClaudeAdapter());
     this.register(new CodexAdapter());
+    this.register(new AgyAdapter());
     this.register(new GeminiAdapter());
     this.register(new OpenCodeAdapter());
     this.register(new OllamaAdapter());
 
-    this.defaultPriority = ['claude', 'codex', 'gemini', 'opencode', 'ollama'];
+    this.defaultPriority = ['claude', 'codex', 'agy', 'gemini', 'opencode', 'ollama'];
   }
 
   public register(adapter: BaseAdapter): void {
