@@ -40,10 +40,66 @@ export class TokenTracker {
   }
 
   /**
-   * Ingests real token usage data written by Claude Code CLI to ~/.claude/stats-cache.json
+   * Ingests real token usage data written by Claude Code CLI from active session logs
+   * and ~/.claude/stats-cache.json.
    */
   public readClaudeStats(): TokenUsageReport['claudeLiveStats'] | undefined {
-    const claudeStatsPath = path.join(os.homedir(), '.claude', 'stats-cache.json');
+    const claudeDir = path.join(os.homedir(), '.claude');
+    const projectsDir = path.join(claudeDir, 'projects');
+
+    // 1. First, attempt to aggregate live session tokens from today's JSONL logs
+    if (fs.existsSync(projectsDir)) {
+      try {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        let liveInput = 0;
+        let liveOutput = 0;
+        let liveCacheRead = 0;
+        let foundTodayFiles = false;
+
+        const walk = (dir: string) => {
+          for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) walk(full);
+            else if (entry.name.endsWith('.jsonl')) {
+              const stat = fs.statSync(full);
+              if (stat.mtime >= todayStart) {
+                foundTodayFiles = true;
+                const content = fs.readFileSync(full, 'utf8');
+                const lines = content.split('\n');
+                for (const line of lines) {
+                  if (!line.trim()) continue;
+                  try {
+                    const obj = JSON.parse(line);
+                    const usage = obj.message?.usage || obj.usage;
+                    if (usage) {
+                      liveInput += usage.input_tokens || 0;
+                      liveOutput += usage.output_tokens || 0;
+                      liveCacheRead += usage.cache_read_input_tokens || 0;
+                    }
+                  } catch {}
+                }
+              }
+            }
+          }
+        };
+
+        walk(projectsDir);
+
+        if (foundTodayFiles && (liveInput > 0 || liveOutput > 0)) {
+          return {
+            todayTokens: liveInput + liveOutput,
+            totalInputTokens: liveInput,
+            totalOutputTokens: liveOutput,
+            cacheReadTokens: liveCacheRead
+          };
+        }
+      } catch {}
+    }
+
+    // 2. Fallback to stats-cache.json
+    const claudeStatsPath = path.join(claudeDir, 'stats-cache.json');
     if (!fs.existsSync(claudeStatsPath)) return undefined;
 
     try {
