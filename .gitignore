@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.agentmesh/
+.env
+.DS_Store
+*.log

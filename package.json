@@ -1,0 +1,53 @@
+{
+  "name": "agentmesh",
+  "version": "0.1.0",
+  "description": "Multi-agent coding orchestrator and CLI subscription router with shared work state and rate-limit failover",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "agentmesh": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli/index.ts",
+    "start": "node dist/cli/index.js",
+    "test": "node --test dist/test/agentmesh.test.js"
+  },
+  "keywords": [
+    "multi-agent",
+    "agentmesh",
+    "orchestrator",
+    "claude-code",
+    "codex",
+    "gemini",
+    "opencode",
+    "ollama",
+    "shared-state",
+    "rate-limit-router"
+  ],
+  "author": "Luis Vasquez (https://github.com/Luisv8181)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Luisv8181/agentmesh.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Luisv8181/agentmesh/issues"
+  },
+  "homepage": "https://github.com/Luisv8181/agentmesh#readme",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.0.0",
+    "dotenv": "^16.4.5",
+    "uuid": "^11.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
