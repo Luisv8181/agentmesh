@@ -10,6 +10,7 @@ import { RateLimiter } from './rate-limiter.js';
 import { TaskStore } from '../state/task-store.js';
 import { HandoffProtocol } from '../state/handoff-protocol.js';
 import { GitCoordinator } from '../workspace/git-coordinator.js';
+import { globalUsageMonitor } from './usage-monitor.js';
 import {
   AgentId,
   AgentStatus,
@@ -19,17 +20,21 @@ import {
   WorkExecutionResult
 } from '../types.js';
 
+const SUBSCRIPTION_AGENTS: AgentId[] = ['claude', 'codex', 'agy', 'gemini'];
+
 export class AgentSelector {
   private adapters: Map<AgentId, BaseAdapter> = new Map();
   private rateLimiter: RateLimiter;
   private taskStore: TaskStore;
   private gitCoordinator: GitCoordinator;
   private defaultPriority: AgentId[];
+  private safeMode = false;
 
-  constructor(workspaceRoot = process.cwd()) {
+  constructor(workspaceRoot = process.cwd(), safeMode = false) {
     this.rateLimiter = new RateLimiter(workspaceRoot);
     this.taskStore = new TaskStore(workspaceRoot);
     this.gitCoordinator = new GitCoordinator(workspaceRoot);
+    this.safeMode = safeMode || process.env.AGENTMESH_SAFE_MODE === 'true';
 
     // Register built-in adapters
     this.register(new ClaudeAdapter());
@@ -40,6 +45,16 @@ export class AgentSelector {
     this.register(new OllamaAdapter());
 
     this.defaultPriority = ['claude', 'codex', 'agy', 'gemini', 'opencode', 'ollama'];
+    globalUsageMonitor.setSafeMode(this.safeMode);
+  }
+
+  public setSafeMode(enabled: boolean): void {
+    this.safeMode = enabled;
+    globalUsageMonitor.setSafeMode(enabled);
+  }
+
+  public isSafeMode(): boolean {
+    return this.safeMode;
   }
 
   public register(adapter: BaseAdapter): void {
@@ -73,6 +88,10 @@ export class AgentSelector {
     this.rateLimiter.resetAll();
   }
 
+  public resetAgent(agentId: AgentId): void {
+    this.rateLimiter.resetAgent(agentId);
+  }
+
   /**
    * Run a task across the mesh.
    * If an agent fails or is rate-limited, AgentMesh snapshots git changes,
@@ -84,6 +103,13 @@ export class AgentSelector {
     forcedAgent?: AgentId
   ): Promise<WorkExecutionResult> {
     const start = Date.now();
+
+    if (this.safeMode && forcedAgent && SUBSCRIPTION_AGENTS.includes(forcedAgent)) {
+      throw new Error(
+        `Safe Mode is enabled. Subscription agent '${forcedAgent}' is blocked to protect your quota. Disable safe mode or use local Ollama.`
+      );
+    }
+
     const candidateQueue = this.resolveQueue(forcedAgent, task.currentAgent);
 
     let activeAgentIndex = 0;
@@ -108,6 +134,9 @@ export class AgentSelector {
         continue;
       }
 
+      // Record start in telemetry
+      globalUsageMonitor.recordRequestStart(agentId, instruction);
+
       // Prepare work brief for this agent
       let promptToAgent: string;
       if (task.handoffs.length > 0) {
@@ -119,11 +148,14 @@ export class AgentSelector {
           `\n\nInstruction:\n${instruction}`;
       }
 
+      const execStart = Date.now();
       const result = await adapter.execute(promptToAgent);
+      const durationMs = Date.now() - execStart;
 
       if (result.success && result.output.trim().length > 0) {
         // Success!
         this.rateLimiter.recordSuccess(agentId);
+        globalUsageMonitor.recordRequestSuccess(agentId, durationMs);
         task.currentAgent = agentId;
         task.status = 'in_progress';
         this.taskStore.saveTask(task);
@@ -156,6 +188,8 @@ export class AgentSelector {
       const nextAgent = candidateQueue[activeAgentIndex];
 
       if (nextAgent) {
+        globalUsageMonitor.recordHandoff(agentId, nextAgent, reason, task.taskId);
+
         const handoffRecord: HandoffRecord = {
           handoffId: `handoff-${uuidv4().slice(0, 8)}`,
           fromAgent: agentId,
@@ -176,9 +210,14 @@ export class AgentSelector {
   }
 
   private resolveQueue(forced?: AgentId, current?: AgentId): AgentId[] {
-    if (forced) return [forced];
+    if (forced) {
+      if (this.safeMode && SUBSCRIPTION_AGENTS.includes(forced)) {
+        throw new Error(`Safe Mode is enabled: cannot route to subscription agent '${forced}'.`);
+      }
+      return [forced];
+    }
 
-    const queue: AgentId[] = [];
+    let queue: AgentId[] = [];
     if (current && !this.rateLimiter.isAgentInCooldown(current)) {
       queue.push(current);
     }
@@ -188,6 +227,15 @@ export class AgentSelector {
         queue.push(p);
       }
     }
+
+    if (this.safeMode) {
+      queue = queue.filter((a) => !SUBSCRIPTION_AGENTS.includes(a));
+      if (queue.length === 0) {
+        queue.push('ollama');
+      }
+    }
+
     return queue;
   }
 }
+

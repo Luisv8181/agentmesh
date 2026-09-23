@@ -31,6 +31,8 @@ const RATE_LIMIT_REGEXES = [
   /resets\s*(?:in|at)/i
 ];
 
+import { globalUsageMonitor } from './usage-monitor.js';
+
 export class RateLimiter {
   private filePath: string;
   private state: Record<string, RateLimitState> = {};
@@ -71,6 +73,7 @@ export class RateLimiter {
     if (Date.now() >= record.cooldownUntil) {
       record.cooldownUntil = null;
       this.persist();
+      globalUsageMonitor.resetCooldown(agentId);
       return false;
     }
     return true;
@@ -90,6 +93,7 @@ export class RateLimiter {
     record.lastUsed = Date.now();
     record.lastError = undefined;
     this.persist();
+    globalUsageMonitor.resetCooldown(agentId);
   }
 
   public recordRateLimit(agentId: AgentId, errorMsg: string): number {
@@ -102,6 +106,8 @@ export class RateLimiter {
     const durationMs = DEFAULT_COOLDOWNS_MS[tier];
     record.cooldownUntil = Date.now() + durationMs;
     this.persist();
+
+    globalUsageMonitor.recordRateLimit(agentId, errorMsg, durationMs);
     return durationMs;
   }
 
@@ -113,6 +119,18 @@ export class RateLimiter {
     // 15-second pause on general failures
     record.cooldownUntil = Date.now() + 15_000;
     this.persist();
+
+    globalUsageMonitor.recordRateLimit(agentId, `Error: ${errorMsg}`, 15_000);
+  }
+
+  public resetAgent(agentId: AgentId): void {
+    if (this.state[agentId]) {
+      this.state[agentId].cooldownUntil = null;
+      this.state[agentId].consecutiveErrors = 0;
+      this.state[agentId].lastError = undefined;
+      this.persist();
+    }
+    globalUsageMonitor.resetCooldown(agentId);
   }
 
   public resetAll(): void {
@@ -120,6 +138,7 @@ export class RateLimiter {
       this.state[key].cooldownUntil = null;
       this.state[key].consecutiveErrors = 0;
       this.state[key].lastError = undefined;
+      globalUsageMonitor.resetCooldown(key as AgentId);
     }
     this.persist();
   }

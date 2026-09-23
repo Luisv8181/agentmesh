@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentMesh — Fleet Command Center</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #101726;
+      --card-border: #1e293b;
+      --accent-cyan: #00f3ff;
+      --accent-green: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-purple: #a855f7;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 24px; min-height: 100vh; }
+    
+    header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid var(--card-border); margin-bottom: 24px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; background: linear-gradient(90deg, #00f3ff, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .status-pill { font-size: 11px; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 6px; }
+    .pill-green { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .pill-amber { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .pill-purple { background: rgba(168, 85, 247, 0.15); color: var(--accent-purple); border: 1px solid rgba(168, 85, 247, 0.3); }
+
+    .header-actions { display: flex; align-items: center; gap: 14px; }
+    .safe-toggle { background: #182235; border: 1px solid var(--card-border); color: var(--text); padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
+    .safe-toggle.active { background: rgba(168, 85, 247, 0.2); border-color: var(--accent-purple); color: #e9d5ff; box-shadow: 0 0 15px rgba(168, 85, 247, 0.25); }
+
+    /* Task Dispatch Bar */
+    .dispatch-bar { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px 18px; margin-bottom: 28px; display: flex; gap: 12px; align-items: center; }
+    .dispatch-input { flex: 1; background: #0b101c; border: 1px solid #1e293b; color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; transition: border 0.2s; }
+    .dispatch-input:focus { border-color: var(--accent-cyan); }
+    .dispatch-select { background: #0b101c; border: 1px solid #1e293b; color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 13px; outline: none; }
+    .btn-primary { background: linear-gradient(135deg, #00f3ff, #0284c7); color: #020617; border: none; font-weight: 700; font-size: 13px; padding: 10px 20px; border-radius: 8px; cursor: pointer; transition: opacity 0.2s; }
+    .btn-primary:hover { opacity: 0.9; }
+
+    /* Grid of Agent Cards */
+    .section-title { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 14px; font-weight: 600; }
+    .agent-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; margin-bottom: 32px; }
+    
+    .agent-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 18px; position: relative; overflow: hidden; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between; }
+    .agent-card:hover { border-color: #334155; transform: translateY(-2px); }
+    .agent-card.cooling { border-color: rgba(245, 158, 11, 0.4); box-shadow: 0 0 20px rgba(245, 158, 11, 0.1); }
+    .agent-card.blocked-safe { opacity: 0.65; border-color: rgba(168, 85, 247, 0.3); }
+
+    .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+    .card-title { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+    .card-sub { font-size: 11px; font-family: monospace; color: var(--text-muted); }
+    
+    /* Gauge / Meter Visual */
+    .meter-container { display: flex; align-items: center; gap: 16px; margin: 12px 0 16px 0; background: #090e18; border-radius: 10px; padding: 12px; border: 1px solid #192336; }
+    .timer-readout { flex: 1; }
+    .timer-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+    .timer-val { font-size: 20px; font-family: monospace; font-weight: 700; color: #fff; margin-top: 2px; }
+    .timer-val.cooling-clock { color: var(--accent-amber); animation: pulse 1s infinite alternate; }
+
+    .progress-bar-bg { width: 100%; height: 6px; background: #1e293b; border-radius: 999px; overflow: hidden; margin-top: 6px; }
+    .progress-bar-fill { height: 100%; background: var(--accent-green); transition: width 0.5s; }
+    .progress-bar-fill.amber { background: var(--accent-amber); }
+
+    /* Stats Grid */
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; border-top: 1px solid #1a2232; padding-top: 12px; margin-top: 8px; }
+    .stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+    .stat-val { font-size: 13px; font-weight: 700; font-family: monospace; margin-top: 2px; }
+
+    .card-actions { margin-top: 14px; display: flex; justify-content: flex-end; }
+    .btn-sm-reset { background: transparent; border: 1px solid #334155; color: var(--text-muted); font-size: 11px; padding: 4px 8px; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+    .btn-sm-reset:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+
+    /* Bottom Split: Tasks & Live Telemetry */
+    .bottom-split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .panel { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 18px; }
+    
+    .event-log { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; padding-right: 6px; font-size: 12px; font-family: monospace; }
+    .event-item { background: #0b111e; border: 1px solid #1a2335; border-radius: 6px; padding: 8px 12px; display: flex; gap: 10px; align-items: center; }
+    .event-time { color: var(--text-muted); font-size: 10px; white-space: nowrap; }
+    .event-type-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; font-weight: 700; }
+    .badge-success { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+    .badge-limit { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); }
+    .badge-handoff { background: rgba(0, 243, 255, 0.2); color: var(--accent-cyan); }
+    .badge-cooldown { background: rgba(168, 85, 247, 0.2); color: var(--accent-purple); }
+
+    @keyframes pulse {
+      from { opacity: 0.8; }
+      to { opacity: 1; text-shadow: 0 0 10px rgba(245, 158, 11, 0.5); }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <h1>🕸️ AgentMesh</h1>
+      <span class="status-pill pill-green" id="fleet-indicator">● Fleet Online</span>
+      <span class="status-pill pill-purple" id="safe-indicator" style="display:none;">🛡️ Local Ollama Mode</span>
+    </div>
+
+    <div class="header-actions">
+      <button class="safe-toggle" id="safe-mode-btn" onclick="toggleSafeMode()">
+        <span>🛡️</span>
+        <span id="safe-btn-text">Local-Only (Safe Mode): OFF</span>
+      </button>
+      <button class="btn-sm-reset" onclick="refreshData()">↻ Refresh</button>
+    </div>
+  </header>
+
+  <!-- Task Dispatcher -->
+  <div class="dispatch-bar">
+    <input type="text" class="dispatch-input" id="task-input" placeholder="Enter task instruction (e.g. 'Build auth middleware in src/auth.ts and verify tests')...">
+    <select class="dispatch-select" id="agent-override">
+      <option value="">Auto Failover (Smart Priority)</option>
+      <option value="ollama">Ollama (100% Free / Local)</option>
+      <option value="claude">Claude Code</option>
+      <option value="codex">OpenAI Codex</option>
+      <option value="agy">Antigravity (agy)</option>
+      <option value="gemini">Google Gemini</option>
+      <option value="opencode">OpenCode AI</option>
+    </select>
+    <button class="btn-primary" onclick="dispatchTask()">Dispatch Task</button>
+  </div>
+
+  <div class="section-title">Agent Fleet & Live Rate-Limit Gauges</div>
+  <div class="agent-grid" id="agent-grid">
+    <!-- Populated dynamically via JS / SSE -->
+  </div>
+
+  <div class="bottom-split">
+    <!-- Active Tasks Panel -->
+    <div class="panel">
+      <div class="section-title">Active Managed Tasks</div>
+      <div id="tasks-container" style="display:flex; flex-direction:column; gap:10px;">
+        <div style="color:var(--text-muted); font-size:13px;">Loading tasks...</div>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Stream -->
+    <div class="panel">
+      <div class="section-title">Real-Time Failover & Rate-Limit Telemetry</div>
+      <div class="event-log" id="event-log">
+        <!-- Live SSE events appear here -->
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let state = {
+      agents: [],
+      metrics: {},
+      tasks: [],
+      safeMode: false
+    };
+
+    async function init() {
+      await refreshData();
+      connectSse();
+      // Client-side local timer tick every second for smooth countdowns
+      setInterval(clientTick, 1000);
+    }
+
+    async function refreshData() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        state.agents = data.agents || [];
+        state.metrics = data.metrics || {};
+        state.tasks = data.tasks || [];
+        state.safeMode = !!data.safeMode;
+        renderAll();
+      } catch (err) {
+        console.error('Failed to load status:', err);
+      }
+    }
+
+    function connectSse() {
+      const sse = new EventSource('/api/telemetry/stream');
+      
+      sse.onmessage = (e) => {
+        try {
+          const payload = JSON.parse(e.data);
+          if (payload.type === 'tick') {
+            state.metrics = payload.metrics;
+            updateGauges();
+          } else if (payload.event) {
+            appendEvent(payload.event);
+            if (payload.event.type === 'safe_mode_toggled') {
+              state.safeMode = payload.event.details?.safeMode;
+              updateSafeModeUI();
+            }
+          }
+        } catch {}
+      };
+
+      sse.onerror = () => {
+        document.getElementById('fleet-indicator').textContent = '○ Reconnecting...';
+        document.getElementById('fleet-indicator').className = 'status-pill pill-amber';
+      };
+
+      sse.onopen = () => {
+        document.getElementById('fleet-indicator').textContent = '● Fleet Online';
+        document.getElementById('fleet-indicator').className = 'status-pill pill-green';
+      };
+    }
+
+    function updateSafeModeUI() {
+      const btn = document.getElementById('safe-mode-btn');
+      const text = document.getElementById('safe-btn-text');
+      const safeInd = document.getElementById('safe-indicator');
+
+      if (state.safeMode) {
+        btn.classList.add('active');
+        text.textContent = 'Local-Only (Safe Mode): ON';
+        safeInd.style.display = 'inline-flex';
+      } else {
+        btn.classList.remove('active');
+        text.textContent = 'Local-Only (Safe Mode): OFF';
+        safeInd.style.display = 'none';
+      }
+    }
+
+    async function toggleSafeMode() {
+      const next = !state.safeMode;
+      await fetch('/api/mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ safeMode: next })
+      });
+      state.safeMode = next;
+      updateSafeModeUI();
+      renderAgents();
+    }
+
+    async function resetAgent(agentId) {
+      await fetch('/api/reset-cooldown', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId })
+      });
+      refreshData();
+    }
+
+    async function dispatchTask() {
+      const input = document.getElementById('task-input');
+      const override = document.getElementById('agent-override').value;
+      const instruction = input.value.trim();
+      if (!instruction) return;
+
+      appendEvent({
+        id: 'local-' + Date.now(),
+        type: 'request_start',
+        timestamp: Date.now(),
+        message: 'Dispatching task: ' + instruction.slice(0, 50) + '...'
+      });
+
+      input.value = '';
+      try {
+        const res = await fetch('/api/run', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ instruction, forcedAgent: override || undefined })
+        });
+        const result = await res.json();
+        if (result.success) {
+          appendEvent({
+            id: 'local-' + Date.now(),
+            type: 'request_success',
+            timestamp: Date.now(),
+            message: `✔ Completed by [${result.agent}] in ${(result.durationMs / 1000).toFixed(2)}s`
+          });
+        } else {
+          appendEvent({
+            id: 'local-' + Date.now(),
+            type: 'rate_limit_hit',
+            timestamp: Date.now(),
+            message: `Execution issue: ${result.error || 'Failed'}`
+          });
+        }
+        refreshData();
+      } catch (err) {
+        appendEvent({
+          id: 'local-' + Date.now(),
+          type: 'rate_limit_hit',
+          timestamp: Date.now(),
+          message: `Network error: ${err.message}`
+        });
+      }
+    }
+
+    function renderAll() {
+      updateSafeModeUI();
+      renderAgents();
+      renderTasks();
+    }
+
+    function renderAgents() {
+      const grid = document.getElementById('agent-grid');
+      grid.innerHTML = '';
+
+      state.agents.forEach(agent => {
+        const m = state.metrics[agent.id] || {
+          totalRequests: 0,
+          successfulRequests: 0,
+          rateLimitHits: 0,
+          otherErrors: 0,
+          currentCooldownRemainingSec: 0,
+          recoveryPercentage: 100,
+          status: 'ready'
+        };
+
+        const isSub = ['claude', 'codex', 'agy', 'gemini'].includes(agent.id);
+        const isBlockedBySafe = state.safeMode && isSub;
+        const isCooling = m.currentCooldownRemainingSec > 0;
+
+        let statusBadge = '<span class="status-pill pill-green">READY</span>';
+        if (isBlockedBySafe) {
+          statusBadge = '<span class="status-pill pill-purple">PROTECTED (SAFE)</span>';
+        } else if (isCooling) {
+          statusBadge = '<span class="status-pill pill-amber">COOLING DOWN</span>';
+        } else if (!agent.available) {
+          statusBadge = '<span style="color:var(--text-muted);font-size:11px;">OFFLINE</span>';
+        }
+
+        const card = document.createElement('div');
+        card.className = `agent-card ${isCooling ? 'cooling' : ''} ${isBlockedBySafe ? 'blocked-safe' : ''}`;
+        card.id = `card-${agent.id}`;
+
+        const timerDisplay = isCooling 
+          ? `<span class="timer-val cooling-clock" id="timer-${agent.id}">${formatTime(m.currentCooldownRemainingSec)}</span>` 
+          : `<span class="timer-val" style="color:var(--accent-green);font-size:16px;">100% AVAILABLE</span>`;
+
+        card.innerHTML = `
+          <div>
+            <div class="card-top">
+              <div>
+                <div class="card-title">${agent.name}</div>
+                <div class="card-sub">${agent.command} ${agent.version ? '· ' + agent.version : ''}</div>
+              </div>
+              ${statusBadge}
+            </div>
+
+            <div class="meter-container">
+              <div class="timer-readout">
+                <div class="timer-label">Rate-Limit Cooldown</div>
+                ${timerDisplay}
+                <div class="progress-bar-bg">
+                  <div class="progress-bar-fill ${isCooling ? 'amber' : ''}" id="bar-${agent.id}" style="width: ${m.recoveryPercentage}%"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="stats-row">
+              <div>
+                <div class="stat-label">Total</div>
+                <div class="stat-val">${m.totalRequests}</div>
+              </div>
+              <div>
+                <div class="stat-label">Success</div>
+                <div class="stat-val" style="color:var(--accent-green);">${m.successfulRequests}</div>
+              </div>
+              <div>
+                <div class="stat-label">429 Hits</div>
+                <div class="stat-val" style="color:var(--accent-amber);">${m.rateLimitHits}</div>
+              </div>
+              <div>
+                <div class="stat-label">Errors</div>
+                <div class="stat-val" style="color:var(--accent-rose);">${m.otherErrors}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-actions">
+            ${isCooling ? `<button class="btn-sm-reset" onclick="resetAgent('${agent.id}')">Reset Cooldown</button>` : ''}
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+    }
+
+    function renderTasks() {
+      const container = document.getElementById('tasks-container');
+      if (state.tasks.length === 0) {
+        container.innerHTML = '<div style="color:var(--text-muted); font-size:13px;">No active tasks. Create one using the dispatch bar above.</div>';
+        return;
+      }
+
+      container.innerHTML = state.tasks.slice(-5).map(t => `
+        <div style="background:#0b111e; border:1px solid #1a2335; border-radius:8px; padding:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-weight:600; font-size:14px; color:#fff;">${escapeHtml(t.title)}</span>
+            <span class="status-pill ${t.status === 'in_progress' ? 'pill-green' : 'pill-amber'}">${t.status}</span>
+          </div>
+          <div style="font-size:11px; color:var(--text-muted); font-family:monospace; margin-top:4px;">
+            ID: ${t.taskId} | Active: ${t.currentAgent || 'none'} | Handoffs: ${t.handoffs?.length || 0}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function appendEvent(ev) {
+      const log = document.getElementById('event-log');
+      const item = document.createElement('div');
+      item.className = 'event-item';
+
+      let badge = '<span class="event-type-badge badge-success">OK</span>';
+      if (ev.type.includes('rate_limit')) badge = '<span class="event-type-badge badge-limit">429 LIMIT</span>';
+      if (ev.type.includes('handoff')) badge = '<span class="event-type-badge badge-handoff">HANDOFF</span>';
+      if (ev.type.includes('cooldown')) badge = '<span class="event-type-badge badge-cooldown">COOLDOWN</span>';
+
+      item.innerHTML = `
+        <span class="event-time">${new Date(ev.timestamp).toLocaleTimeString()}</span>
+        ${badge}
+        <span style="color:#e2e8f0; flex:1;">${escapeHtml(ev.message)}</span>
+      `;
+      log.prepend(item);
+    }
+
+    function updateGauges() {
+      for (const [id, m] of Object.entries(state.metrics)) {
+        const timerEl = document.getElementById(`timer-${id}`);
+        const barEl = document.getElementById(`bar-${id}`);
+        if (timerEl) {
+          if (m.currentCooldownRemainingSec > 0) {
+            timerEl.textContent = formatTime(m.currentCooldownRemainingSec);
+            timerEl.className = 'timer-val cooling-clock';
+          } else {
+            timerEl.textContent = '100% AVAILABLE';
+            timerEl.className = 'timer-val';
+            timerEl.style.color = 'var(--accent-green)';
+            timerEl.style.fontSize = '16px';
+          }
+        }
+        if (barEl) {
+          barEl.style.width = `${m.recoveryPercentage}%`;
+        }
+      }
+    }
+
+    function clientTick() {
+      for (const [id, m] of Object.entries(state.metrics)) {
+        if (m.currentCooldownRemainingSec > 0) {
+          m.currentCooldownRemainingSec--;
+          const timerEl = document.getElementById(`timer-${id}`);
+          if (timerEl) {
+            timerEl.textContent = formatTime(m.currentCooldownRemainingSec);
+          }
+          if (m.currentCooldownRemainingSec <= 0) {
+            refreshData();
+          }
+        }
+      }
+    }
+
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/[&<>"']/g, function(m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      });
+    }
+
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

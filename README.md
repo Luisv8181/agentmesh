@@ -45,7 +45,7 @@ Instead of passing conversation transcripts, **AgentMesh** passes the **State of
 
 AgentMesh is organized around five core modules:
 
-* **`router/`**: Rate-limit awareness and fallback dispatcher. Detects HTTP `429`s, quota resets, and capacity errors, placing exhausted providers into exponential backoff cooldowns while routing to the next healthy agent.
+* **`router/`**: Rate-limit awareness and fallback dispatcher. Includes **`usage-monitor.ts`** for real-time telemetry, sliding-window request counting, and Server-Sent Events (SSE) broadcasting.
 * **`adapters/`**: Headless CLI execution wrappers for:
   * **Claude Code** (`claude -p`)
   * **OpenAI Codex** (`codex exec --skip-git-repo-check -`)
@@ -55,7 +55,42 @@ AgentMesh is organized around five core modules:
   * **Local Ollama** (HTTP `:11434` offline fallback)
 * **`state/`**: Persistent task store (`.agentmesh/tasks/`) and the **Handoff Protocol** that generates structured work briefs.
 * **`workspace/`**: Git coordinator that snapshots workspace changes and records handoff commits (`[agentmesh] handoff: from -> to`).
-* **`cli/`**: Unified commands for managing tasks, inspecting rate-limit states, and running multi-agent workflows.
+* **`ui/`**: Embedded Fleet Command Center web dashboard (`dashboard.html`) and real-time SSE server (`agentmesh ui`).
+* **`cli/`**: Unified commands for managing tasks, launching the UI, inspecting rate-limit states, and running multi-agent workflows.
+
+---
+
+## 🛡️ Safe Mode: Zero Subscription Usage
+
+Need to test agent behavior without risking your paid subscription quotas? AgentMesh includes a hard safety guard:
+
+```bash
+# Run with local Ollama only (blocks Claude, Codex, agy, Gemini)
+agentmesh run --local-only "Generate a helper utility in src/utils.ts"
+
+# Or launch the Web Dashboard in Safe Mode
+agentmesh ui --local-only
+```
+
+When Safe Mode is enabled, AgentMesh **strictly blocks** any execution of paid CLIs, routing 100% locally to Ollama (e.g. `llama3.2`, `codellama`, `qwen2.5`). Zero tokens are charged and zero subscription limits are consumed.
+
+---
+
+## 🖥️ Web UI Dashboard
+
+Launch the visual Fleet Command Center with live cooldown countdown meters and real-time SSE failover stream:
+
+```bash
+agentmesh ui
+# Opens http://localhost:3333 automatically
+```
+
+Key UI Features:
+* **Live Ticking Cooldown Clocks**: Second-by-second countdown for cooling providers.
+* **Visual Recovery Meters**: Color-coded progress bars showing recovery percentage.
+* **Interactive Safe Mode Toggle**: One-click switch to lock out cloud subscriptions.
+* **Real-Time Telemetry Log**: Live feed of 429 limits, failovers, and Git commits.
+* **One-Click Cooldown Resets**: Clear recovery timers manually on demand.
 
 ---
 
