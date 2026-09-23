@@ -88,6 +88,7 @@ agentmesh ui
 Key UI Features:
 * **Live Ticking Cooldown Clocks**: Second-by-second countdown for cooling providers.
 * **Visual Recovery Meters**: Color-coded progress bars showing recovery percentage.
+* **Direct Subscription Telemetry**: Ingests real-time token counts, active models, and cache hits from Claude Code (`~/.claude/`) and OpenAI Codex (`~/.codex/`).
 * **Interactive Safe Mode Toggle**: One-click switch to lock out cloud subscriptions.
 * **Real-Time Telemetry Log**: Live feed of 429 limits, failovers, and Git commits.
 * **One-Click Cooldown Resets**: Clear recovery timers manually on demand.
@@ -120,6 +121,7 @@ Output:
 
 Claude Code CLI              [✔ INSTALLED] [READY]
 OpenAI Codex CLI             [✔ INSTALLED] [READY]
+Google Antigravity CLI (agy) [✔ INSTALLED] [READY]
 Google Gemini CLI            [✔ INSTALLED] [READY]
 OpenCode AI CLI              [✔ INSTALLED] [READY]
 Local Ollama Fallback        [✔ INSTALLED] [READY]
