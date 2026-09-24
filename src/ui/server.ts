@@ -11,7 +11,7 @@ import { ConfigStore, AgentMeshConfig, ALL_AGENTS } from '../state/config-store.
 import { globalUsageMonitor } from '../router/usage-monitor.js';
 import { globalTokenTracker } from '../router/token-tracker.js';
 import { clearResolveCache, refreshPathFromSystem } from '../adapters/resolve-command.js';
-import { AgentId, HandoffReason, WorkExecutionResult } from '../types.js';
+import { AgentId, HandoffReason, RouteDecision, WorkExecutionResult } from '../types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MAX_BODY_BYTES = 1_000_000;
@@ -36,6 +36,7 @@ interface ActiveRun {
   handoffs: { from: AgentId; to: AgentId; reason: HandoffReason; error: string }[];
   status: 'running' | 'finished';
   result?: WorkExecutionResult;
+  route?: RouteDecision;
   abort: AbortController;
 }
 
@@ -84,10 +85,11 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
       output: run.output,
       handoffs: run.handoffs,
       status: run.status,
+      route: run.route,
       result: run.result
     };
 
-  const startRun = (instruction: string, forcedAgent: AgentId | undefined, taskId: string | undefined): ActiveRun => {
+  const startRun = (instruction: string, forcedAgent: AgentId | undefined, taskId: string | undefined, forceEdit = false): ActiveRun => {
     if (run?.status === 'running') throw new HttpError(409, 'An agent is already working. Wait for it to finish or press Stop.');
     if (forcedAgent && !ALL_AGENTS.includes(forcedAgent)) throw new HttpError(400, `Unknown agent "${forcedAgent}"`);
 
@@ -119,6 +121,11 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
         result = await selector.executeTask(runTask, instruction, forcedAgent, {
           runId: active.runId,
           signal: active.abort.signal,
+          forceEdit,
+          onRoute: (route) => {
+            active.route = route;
+            broadcast({ type: 'run', kind: 'route', runId: active.runId, route });
+          },
           onAgentStart: (agentId) => {
             active.agent = agentId;
             broadcast({ type: 'run', kind: 'agent', runId: active.runId, agentId });
@@ -241,7 +248,8 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
       const active = startRun(
         instruction,
         typeof body.forcedAgent === 'string' && body.forcedAgent ? (body.forcedAgent as AgentId) : undefined,
-        typeof body.taskId === 'string' ? body.taskId : undefined
+        typeof body.taskId === 'string' ? body.taskId : undefined,
+        body.forceEdit === true
       );
       return { runId: active.runId, taskId: active.taskId };
     }
@@ -276,6 +284,7 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
       if (typeof body.ollamaModel === 'string') patch.ollamaModel = body.ollamaModel;
       if (typeof body.onboarded === 'boolean') patch.onboarded = body.onboarded;
       if (body.models && typeof body.models === 'object') patch.models = body.models;
+      if (typeof body.smartRouting === 'boolean') patch.smartRouting = body.smartRouting;
       const updated = config.update(patch);
       selector.reloadConfig();
       if (patch.ollamaModel) await selector.getStatuses(true);

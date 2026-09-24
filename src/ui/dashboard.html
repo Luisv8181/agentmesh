@@ -345,6 +345,8 @@
       <div class="kv">
         <div><b>Let agents edit files</b><div class="small muted">Off = agents only read your project and explain what they'd change.</div></div>
         <label class="switch"><input type="checkbox" id="set-edit"><span class="sr-only">Let agents edit files</span></label>
+        <div><b>Smart routing</b><div class="small muted">Questions ("explain…", "what does…") go to free local Ollama first, read-only. Requests to change files always go to a coding agent. Saves your limits.</div></div>
+        <label class="switch"><input type="checkbox" id="set-smart"><span class="sr-only">Smart routing</span></label>
         <div><b>Save a git checkpoint on handoff</b><div class="small muted">For git projects. Commits files git already tracks when one agent hands over to another. New files are never included.</div></div>
         <label class="switch"><input type="checkbox" id="set-commit"><span class="sr-only">Save a git checkpoint on handoff</span></label>
       </div>
@@ -534,12 +536,18 @@
     if (!r || (state.task && r.taskId !== state.task.taskId && r.status !== 'running')) { el.innerHTML = ''; return; }
 
     const handoffs = (r.handoffs || []).map((h) => `<div class="handoff">↪ <b>${esc(agentName(h.from))}</b> ${h.reason === 'rate_limit' ? 'hit its usage limit' : 'ran into a problem'}, so <b>${esc(agentName(h.to))}</b> is taking over from where it left off.</div>`).join('');
+    const route = r.route || r.result?.route;
+    const routeLine = route
+      ? `<div class="small muted" style="margin-top:6px">🧭 ${route.kind === 'read' ? 'Answering as a question' : 'Handled by a coding agent'}: ${esc(route.reason)}.</div>`
+      : '';
 
     if (r.status === 'running') {
       const who = r.agent ? agentName(r.agent) : 'An agent';
       const access = r.agent === 'ollama'
         ? 'Ollama reads your project and answers; it can’t change files itself.'
-        : state.data.config.permission === 'edit'
+        : route?.kind === 'read'
+          ? 'Read-only: it will answer without changing your files.'
+          : state.data.config.permission === 'edit'
           ? `It can edit files in <b>${esc(folderName(state.data.workspace))}</b>.`
           : 'Read-only: it will not change your files.';
       el.innerHTML = `<div class="card card-pad">
@@ -553,6 +561,7 @@
         </div>
         <div class="progress"><span></span></div>
         <div class="small muted" style="margin-top:8px">“${esc(r.instruction.slice(0, 200))}”</div>
+        ${routeLine}
         <div class="timeline">${handoffs}</div>
         <div class="output live" id="live-output">${esc(stripAnsi(r.output))}</div>
       </div>`;
@@ -575,6 +584,8 @@
         </div>
         <button class="btn sm ghost" data-action="dismiss-run">Hide</button>
       </div>
+      ${routeLine}
+      ${route?.kind === 'read' && !res.cancelled ? `<div style="margin-top:8px"><button class="btn sm" data-action="redo-edit">Wanted changes made? Redo with a coding agent</button></div>` : ''}
       <div class="timeline">${handoffs}</div>
       ${!res.success && !res.cancelled ? `<div class="banner err" style="margin-top:12px;white-space:pre-wrap">${esc(res.error)}</div>${helpFor(res.error)}` : ''}
       ${files.length
@@ -722,6 +733,7 @@
     }).join('');
     $('#set-edit').checked = d.config.permission === 'edit';
     $('#set-commit').checked = d.config.autoCommit;
+    $('#set-smart').checked = !!d.config.smartRouting;
     $('#set-model').value = d.config.ollamaModel;
     $('#models').innerHTML = d.agents.filter((a) => a.id !== 'ollama').map((a) =>
       `<div style="align-self:center">${esc(a.name)}</div><input class="text" style="width:180px" data-model-for="${a.id}" placeholder="agent default" value="${esc(d.config.models?.[a.id] || '')}">`
@@ -790,6 +802,7 @@
     if (p.kind === 'started') { state.run = p.run; renderRun(); renderComposer(); renderPills(); return; }
     if (!state.run || p.runId && p.runId !== state.run.runId && !p.run) return;
     if (p.kind === 'agent') { state.run.agent = p.agentId; renderRun(); renderPills(); }
+    else if (p.kind === 'route') { state.run.route = p.route; renderRun(); }
     else if (p.kind === 'output') {
       state.run.output += p.text;
       const out = $('#live-output');
@@ -856,6 +869,11 @@
   const handlers = {
     start,
     stop: () => act(() => api('/api/runs/current/cancel', {})),
+    'redo-edit': () => act(async () => {
+      const r = state.run;
+      await api('/api/runs', { instruction: r.instruction, taskId: r.taskId, forceEdit: true });
+      await refresh();
+    }),
     'new-task': () => act(async () => { await api('/api/tasks/new', {}); if (state.run?.status !== 'running') hideRun(); await refresh(); closeDrawer(); $('#instruction').focus(); }),
     'select-task': (el) => act(async () => { await api(`/api/tasks/${el.dataset.task}/select`, {}); await refresh(); closeDrawer(); }),
     'finish-task': () => act(async () => { await api(`/api/tasks/${state.task.taskId}/complete`, {}); if (state.run?.status !== 'running') hideRun(); await refresh(); toast('Task finished. Your next instruction starts a new one.'); }),
@@ -922,6 +940,7 @@
     if (el.id === 'safe-toggle') act(async () => { await api('/api/mode', { safeMode: el.checked }); await refresh(); });
     if (el.id === 'set-edit') act(() => saveConfig({ permission: el.checked ? 'edit' : 'readonly' }));
     if (el.id === 'set-commit') act(() => saveConfig({ autoCommit: el.checked }));
+    if (el.id === 'set-smart') act(() => saveConfig({ smartRouting: el.checked }));
   });
   $('#instruction').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); start(); }

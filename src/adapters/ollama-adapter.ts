@@ -9,6 +9,10 @@ export class OllamaAdapter extends BaseAdapter {
   private baseUrl: string;
   public model: string;
 
+  get endpoint(): string {
+    return this.baseUrl;
+  }
+
   constructor(baseUrl = 'http://127.0.0.1:11434', model = 'qwen2.5:7b') {
     super();
     this.baseUrl = process.env.OLLAMA_BASE_URL || baseUrl;

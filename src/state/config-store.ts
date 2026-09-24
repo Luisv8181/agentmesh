@@ -15,6 +15,8 @@ export interface AgentMeshConfig {
   ollamaModel: string;
   /** Per-agent model override passed as --model; empty means the CLI's own default. */
   models: Partial<Record<AgentId, string>>;
+  /** Send questions to Ollama first (read-only) and never send edits to Ollama. */
+  smartRouting: boolean;
   recentWorkspaces: string[];
   onboarded: boolean;
 }
@@ -25,6 +27,7 @@ export const DEFAULT_CONFIG: AgentMeshConfig = {
   permission: 'edit',
   ollamaModel: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
   models: {},
+  smartRouting: false,
   recentWorkspaces: [],
   onboarded: false
 };
@@ -83,6 +86,7 @@ function sanitize(c: AgentMeshConfig): AgentMeshConfig {
         .filter(([id, m]) => ALL_AGENTS.includes(id as AgentId) && id !== 'ollama' && typeof m === 'string' && /^\w[\w.:\/\[\]-]{0,99}$/.test(m.trim()))
         .map(([id, m]) => [id, (m as string).trim()])
     ),
+    smartRouting: c.smartRouting === true,
     recentWorkspaces: Array.isArray(c.recentWorkspaces) ? c.recentWorkspaces.filter((d) => typeof d === 'string') : [],
     onboarded: c.onboarded === true
   };

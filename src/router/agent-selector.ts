@@ -15,6 +15,7 @@ import { snapshotFiles, diffSnapshots } from '../workspace/change-tracker.js';
 import { globalUsageMonitor } from './usage-monitor.js';
 import { globalTokenTracker } from './token-tracker.js';
 import { keyErrorLine, fixHint } from './error-hints.js';
+import { classify, Classification } from './task-classifier.js';
 import {
   AgentId,
   AgentStatus,
@@ -37,6 +38,10 @@ export interface RunHooks {
   onAgentStart?: (agentId: AgentId) => void;
   onOutput?: (agentId: AgentId, chunk: string) => void;
   onHandoff?: (from: AgentId, to: AgentId, reason: HandoffReason, error: string) => void;
+  /** Smart routing decided where this goes (only when smart routing is on). */
+  onRoute?: (route: Classification) => void;
+  /** Skip smart routing's question detection ("Redo with a coding agent"). */
+  forceEdit?: boolean;
 }
 
 export class AgentSelector {
@@ -143,8 +148,30 @@ export class AgentSelector {
       );
     }
 
-    const { autoCommit, permission, models } = this.config.get();
-    const queue = this.resolveQueue(forcedAgent, task.currentAgent);
+    const { autoCommit, permission: configuredPermission, models, smartRouting, priority } = this.config.get();
+    let queue = this.resolveQueue(forcedAgent, task.currentAgent);
+    let permission = configuredPermission;
+    let route: Classification | undefined;
+
+    if (smartRouting && !forcedAgent && !this.safeMode) {
+      const ollama = this.adapters.get('ollama');
+      const ollamaUsable =
+        !!ollama && priority.includes('ollama') && !this.rateLimiter.isAgentInCooldown('ollama') && (await ollama.isAvailable()).available;
+      const tieBreaker = ollamaUsable && ollama instanceof OllamaAdapter ? { baseUrl: ollama.endpoint, model: ollama.model } : undefined;
+      route = hooks.forceEdit
+        ? { kind: 'edit', certainty: 'clear', by: 'rule', reason: 'you asked for a coding agent' }
+        : await classify(instruction, tieBreaker);
+      hooks.onRoute?.(route);
+
+      if (route.kind === 'read') {
+        // Questions: free local model first, and nobody gets to change files while answering.
+        permission = 'readonly';
+        if (ollamaUsable) queue = ['ollama', ...queue.filter((a) => a !== 'ollama')];
+      } else {
+        // Edits never go to Ollama: it can't change files and has claimed edits it didn't make.
+        queue = queue.filter((a) => a !== 'ollama');
+      }
+    }
     const before = snapshotFiles(this.workspaceRoot);
     const handoffs: WorkExecutionResult['handoffs'] = [];
     const skipped: string[] = [];
@@ -152,7 +179,7 @@ export class AgentSelector {
     let last: { agentId: AgentId; output: string; error: string } | null = null;
 
     const finish = (result: Omit<WorkExecutionResult, 'durationMs' | 'handoffs'>): WorkExecutionResult => {
-      const full: WorkExecutionResult = { ...result, handoffs, durationMs: Date.now() - start };
+      const full: WorkExecutionResult = { ...result, handoffs, route, durationMs: Date.now() - start };
       this.recordRun(task, instruction, full, start, diffSnapshots(before, snapshotFiles(this.workspaceRoot)), hooks.runId);
       return full;
     };
@@ -331,6 +358,7 @@ export class AgentSelector {
       error: result.error,
       handoffs: result.handoffs,
       filesChanged,
+      route: result.route,
       startedAt,
       durationMs: result.durationMs
     };

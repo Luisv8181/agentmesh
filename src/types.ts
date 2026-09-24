@@ -67,6 +67,7 @@ export interface RunRecord {
   error?: string;
   handoffs: { from: AgentId; to: AgentId; reason: HandoffReason }[];
   filesChanged: string[];
+  route?: RouteDecision;
   startedAt: number;
   durationMs: number;
 }
@@ -78,5 +79,14 @@ export interface WorkExecutionResult {
   error?: string;
   cancelled?: boolean;
   handoffs: { from: AgentId; to: AgentId; reason: HandoffReason }[];
+  /** Present when smart routing chose where this went. */
+  route?: RouteDecision;
   durationMs: number;
+}
+
+export interface RouteDecision {
+  kind: 'read' | 'edit';
+  certainty: 'clear' | 'unclear';
+  by: 'rule' | 'ollama' | 'default';
+  reason: string;
 }

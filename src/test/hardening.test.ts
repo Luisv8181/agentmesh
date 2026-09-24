@@ -391,3 +391,81 @@ test('"Out of usage credits" counts as a quota limit with a model-switch hint', 
   assert.strictEqual(rl.isRateLimit('API Error: Fable 5 requires usage credits. Update Claude Code to the latest version to learn more'), true);
   assert.match(fixHint('claude', 'Claude Code', raw) ?? '', /Settings → Models.*sonnet or opus/);
 });
+
+// The 24 cases from the routing experiment (labels: does fulfilling it need file changes?).
+const ROUTING_CASES: [string, 'read' | 'edit'][] = [
+  ['Explain what this project does and how the files fit together', 'read'],
+  ['What does the function calculateTotal in cart.js do?', 'read'],
+  ['Summarize the changes made in the last step', 'read'],
+  ['Write a commit message for these changes', 'read'],
+  ["Why is the login page slow? Don't change anything, just tell me", 'read'],
+  ['Is there anything insecure about how passwords are stored here?', 'read'],
+  ['Which file should I edit to change the footer text?', 'read'],
+  ['List the dependencies this project uses', 'read'],
+  ['How do I run this project on my computer?', 'read'],
+  ['Review index.html and tell me what you would improve', 'read'],
+  ['Compare the two approaches in utils.js and recommend one', 'read'],
+  ['What does this error mean: TypeError: undefined is not a function', 'read'],
+  ['Add a contact form to the homepage that emails me the message', 'edit'],
+  ['Fix the bug where the cart total is wrong', 'edit'],
+  ['Change the button color to blue', 'edit'],
+  ['Write a README.md that explains how to run this project', 'edit'],
+  ['Rename the function getData to fetchUserData everywhere', 'edit'],
+  ['Create a new page called about.html with our story', 'edit'],
+  ['Add tests for the login function', 'edit'],
+  ['Make the site work on phones', 'edit'],
+  ['Translate the homepage into Spanish', 'edit'],
+  ['Delete the unused images folder', 'edit'],
+  ['Update the copyright year in the footer to 2026', 'edit'],
+  ['Can you make the header sticky?', 'edit'],
+  // Found in a live run: 'do not change anything else' limits an edit, it doesn't forbid one.
+  ['Append exactly one new line at the end of RELAY.md: 7. Test line. Do not change anything else.', 'edit'],
+  ["Fix the typo in the footer. Don't touch any other files.", 'edit']
+];
+
+test('Routing rule never sends a request that needs file changes down the read-only path', async () => {
+  const { classifyByRule } = await import('../router/task-classifier.js');
+  let correct = 0;
+  for (const [q, want] of ROUTING_CASES) {
+    const got = classifyByRule(q);
+    if (got.kind === want) correct++;
+    if (want === 'edit') assert.strictEqual(got.kind, 'edit', `edit request routed read-only: ${q}`);
+    if (got.certainty === 'clear') assert.strictEqual(got.kind, want, `rule was confidently wrong: ${q}`);
+  }
+  assert.ok(correct >= 20, `rule-only accuracy ${correct}/${ROUTING_CASES.length}`);
+});
+
+test('Smart routing: questions go to Ollama read-only, edits never go to Ollama', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentmesh-route-'));
+  const seen: { agent: AgentId; permission?: string }[] = [];
+  const record = (agent: AgentId, result = ok) => new ScriptedAdapter(agent, async (_p, opts) => { seen.push({ agent, permission: opts.permission }); return result(); });
+  const selector = new AgentSelector(dir, false, freshConfig({ priority: ['ollama', 'agy'], smartRouting: true }));
+  selector.register(record('ollama'));
+  selector.register(record('agy'));
+  const task = new TaskStore(dir).createTask('t', ['r']);
+
+  const q = await selector.executeTask(task, 'Explain what this project does');
+  assert.strictEqual(q.agent, 'ollama');
+  assert.strictEqual(q.route?.kind, 'read');
+  assert.strictEqual(seen.at(-1)?.permission, 'readonly');
+
+  const e = await selector.executeTask(task, 'Add a contact form to the homepage');
+  assert.strictEqual(e.agent, 'agy');
+  assert.strictEqual(seen.filter((s) => s.agent === 'ollama').length, 1, 'Ollama was not called for the edit');
+  assert.strictEqual(seen.at(-1)?.permission, 'edit');
+
+  const redo = await selector.executeTask(task, 'Explain what this project does', undefined, { forceEdit: true });
+  assert.strictEqual(redo.agent, 'agy');
+});
+
+test('Smart routing: if Ollama fails on a question, the next agent answers read-only', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentmesh-route-fallback-'));
+  let agyPermission: string | undefined;
+  const selector = new AgentSelector(dir, false, freshConfig({ priority: ['ollama', 'agy'], smartRouting: true }));
+  selector.register(new ScriptedAdapter('ollama', async () => ({ success: false, output: '', error: 'Ollama error: model crashed', durationMs: 1 })));
+  selector.register(new ScriptedAdapter('agy', async (_p, opts) => { agyPermission = opts.permission; return { success: true, output: 'answer', durationMs: 1 }; }));
+
+  const res = await selector.executeTask(new TaskStore(dir).createTask('t', ['r']), 'What does index.html do?');
+  assert.strictEqual(res.agent, 'agy');
+  assert.strictEqual(agyPermission, 'readonly');
+});
