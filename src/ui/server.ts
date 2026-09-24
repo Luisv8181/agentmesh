@@ -12,6 +12,7 @@ import { globalUsageMonitor } from '../router/usage-monitor.js';
 import { globalTokenTracker } from '../router/token-tracker.js';
 import { clearResolveCache, refreshPathFromSystem } from '../adapters/resolve-command.js';
 import { BatonStore } from '../baton/baton-store.js';
+import { ProjectSearch } from '../search/project-search.js';
 import { PROTOCOL_TEXT, SITE_INFO, WEB_SITES, WebSite } from '../baton/protocol.js';
 import { AgentId, HandoffReason, RouteDecision, WorkExecutionResult } from '../types.js';
 
@@ -54,6 +55,7 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
   let selector = new AgentSelector(workspaceRoot, safeMode, config);
   let taskStore = new TaskStore(workspaceRoot);
   let run: ActiveRun | null = null;
+  let searchIndex: { root: string; search: ProjectSearch } | null = null;
   config.rememberWorkspace(workspaceRoot);
 
   // Probe CLIs in the background so the first page load is fast.
@@ -299,6 +301,12 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
       refreshPathFromSystem();
       clearResolveCache();
       return { agents: await selector.getStatuses(true) };
+    }
+
+    if (m === 'GET' && p === '/api/search') {
+      const q = (url.searchParams.get('q') ?? '').slice(0, 200);
+      if (searchIndex?.root !== selector.workspaceRoot) searchIndex = { root: selector.workspaceRoot, search: new ProjectSearch(selector.workspaceRoot) };
+      return { query: q, hits: searchIndex.search.search(q) };
     }
 
     // ---- Web-AI baton (ChatGPT / Claude / Gemini relay) ----

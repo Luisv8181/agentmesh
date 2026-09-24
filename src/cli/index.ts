@@ -5,6 +5,7 @@ import { AgentSelector } from '../router/agent-selector.js';
 import { TaskStore } from '../state/task-store.js';
 import { ConfigStore } from '../state/config-store.js';
 import { BatonStore } from '../baton/baton-store.js';
+import { ProjectSearch } from '../search/project-search.js';
 import { PROTOCOL_TEXT, SITE_INFO, WEB_SITES, WebSite } from '../baton/protocol.js';
 import { AgentId } from '../types.js';
 import * as fs from 'fs';
@@ -223,6 +224,24 @@ program
   .action(() => {
     new AgentSelector().resetCooldowns();
     console.log(chalk.green('✔ All AgentMesh rate-limit cooldowns have been reset.'));
+  });
+
+// SEARCH: everything AgentMesh knows about a project (notes, agent steps, files)
+program
+  .command('search <words...>')
+  .description('Search the project: handoff notes, agent steps and files')
+  .option('--project <folder>', 'Defaults to the project last opened in AgentMesh')
+  .option('--json')
+  .action((words: string[], opts) => {
+    const dir = opts.project ? path.resolve(opts.project) : new ConfigStore().get().recentWorkspaces.find((d) => fs.existsSync(d)) ?? process.cwd();
+    const hits = new ProjectSearch(dir).search(words.join(' '));
+    if (opts.json) return console.log(JSON.stringify({ project: dir, hits: hits.map(({ text, ...h }) => h) }, null, 2));
+    console.error(chalk.dim(`Project: ${dir}`));
+    if (!hits.length) return console.log('No matches.');
+    for (const h of hits) {
+      const snippet = h.snippet.replace(/\s+/g, ' ').replace(/⟦(.*?)⟧/g, (_m, w: string) => chalk.yellow(w));
+      console.log(`${chalk.bold(h.title)} ${chalk.dim(`[${h.kind}]`)}\n  ${snippet}`);
+    }
   });
 
 // BATON: carry a project between ChatGPT, Claude and Gemini by hand (see AGENTS.md section C)

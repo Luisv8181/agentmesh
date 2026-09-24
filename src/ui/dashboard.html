@@ -179,6 +179,29 @@
 
   .scrim { display: none; }
 
+  /* Search (Spotlight-style) */
+  .search-field { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 7px 10px; cursor: pointer; color: var(--muted); font-size: 13px; text-align: left; }
+  .search-field:hover { border-color: color-mix(in srgb, var(--text) 25%, var(--border)); color: var(--text); }
+  kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; color: var(--muted); background: var(--bg); }
+  dialog.search-dlg { width: min(860px, calc(100vw - 32px)); margin-top: 10vh; padding: 0; overflow: hidden; }
+  .search-top { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .search-top input { flex: 1; border: 0; outline: none; background: transparent; font-size: 18px; }
+  .search-top input::-webkit-search-cancel-button { display: none; }
+  .search-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); height: min(460px, 60vh); }
+  .search-results { list-style: none; margin: 0; padding: 6px; overflow-y: auto; border-right: 1px solid var(--border); }
+  .search-results .grp { font-size: 11.5px; color: var(--muted); padding: 10px 10px 4px; }
+  .search-results li[role="option"] { padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+  .search-results li[aria-selected="true"] { background: var(--accent); color: var(--accent-text); }
+  .search-results li[aria-selected="true"] .muted { color: inherit; opacity: .8; }
+  .search-results .r-title { font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .search-results .r-snip { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .search-results mark, .search-preview mark { background: color-mix(in srgb, var(--warn) 30%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
+  .search-results li[aria-selected="true"] mark { background: rgba(255,255,255,.3); }
+  .search-preview { padding: 16px 18px; overflow-y: auto; font-size: 13px; }
+  .search-preview pre { white-space: pre-wrap; font-family: var(--mono); font-size: 12px; margin: 10px 0 0; overflow-wrap: anywhere; }
+  .search-empty { color: var(--muted); padding: 24px; text-align: center; }
+  @media (max-width: 640px) { .search-body { grid-template-columns: 1fr; } .search-preview { display: none; } }
+
   /* Welcome flow: one question per screen */
   .welcome { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto; display: flex; justify-content: center; padding: 56px 20px 40px; }
   .welcome-inner { width: min(640px, 100%); display: flex; flex-direction: column; gap: 22px; margin: auto 0; }
@@ -243,6 +266,9 @@
       AgentMesh
     </div>
     <button class="mode-chip linkish" id="mode-chip" data-action="open-settings" hidden></button>
+    <button class="search-field" data-action="open-search" aria-label="Search this project (Ctrl+K)">
+      <span>🔍 Search this project</span><kbd>Ctrl K</kbd>
+    </button>
 
     <div>
       <div class="group-label">Project folder</div>
@@ -485,6 +511,19 @@
       <div class="section-title">Handoff notes so far</div>
       <div id="baton-briefs" class="history"></div>
     </div>
+  </div>
+</dialog>
+
+<!-- Search (Spotlight-style) -->
+<dialog id="dlg-search" class="search-dlg" aria-label="Search this project">
+  <div class="search-top">
+    <span aria-hidden="true">🔍</span>
+    <input id="search-input" type="search" placeholder="Search notes, steps and files…" autocomplete="off" spellcheck="false" aria-controls="search-results">
+    <kbd>Esc</kbd>
+  </div>
+  <div class="search-body">
+    <ul id="search-results" class="search-results" role="listbox" aria-label="Results"></ul>
+    <div id="search-preview" class="search-preview" aria-live="polite"></div>
   </div>
 </dialog>
 
@@ -882,6 +921,81 @@
     if ($('#dlg-settings').open) renderSettings();
   }
 
+  // ---------- Search ----------
+  const search = { hits: [], sel: 0, timer: null, seq: 0 };
+  const KIND_LABEL = { note: 'Handoff notes', step: 'Agent steps', file: 'Files' };
+  function openSearch() {
+    const dlg = $('#dlg-search');
+    if (!dlg.open) dlg.showModal();
+    $('#search-input').select();
+    if (!$('#search-input').value) renderSearch();
+  }
+  function highlight(text, words) {
+    let html = esc(text);
+    for (const w of words) {
+      if (w.length < 2) continue;
+      html = html.replace(new RegExp(`(${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'), '<mark>$1</mark>');
+    }
+    return html;
+  }
+  function renderSearch() {
+    const q = $('#search-input').value.trim();
+    const list = $('#search-results');
+    if (!q) {
+      list.innerHTML = '<li class="search-empty">Find anything: a decision in a handoff note, what an agent did, or text in a file.</li>';
+      $('#search-preview').innerHTML = '';
+      return;
+    }
+    if (!search.hits.length) {
+      list.innerHTML = `<li class="search-empty">No matches for “${esc(q)}”.</li>`;
+      $('#search-preview').innerHTML = '';
+      return;
+    }
+    let last = '';
+    list.innerHTML = search.hits.map((h, i) => {
+      const grp = h.kind !== last ? `<li class="grp" role="presentation">${KIND_LABEL[h.kind]}</li>` : '';
+      last = h.kind;
+      const snip = esc(h.snippet.replace(/\s+/g, ' ')).replace(/⟦/g, '<mark>').replace(/⟧/g, '</mark>');
+      return `${grp}<li role="option" id="sr-${i}" data-i="${i}" aria-selected="${i === search.sel}">
+        <div class="r-title">${esc(h.title)}</div><div class="r-snip muted">${snip}</div></li>`;
+    }).join('');
+    $('#search-input').setAttribute('aria-activedescendant', `sr-${search.sel}`);
+    $(`#sr-${search.sel}`)?.scrollIntoView({ block: 'nearest' });
+    const h = search.hits[search.sel];
+    const words = q.split(/\s+/);
+    const when = h.at ? ` · ${fmtWhen(h.at)}` : '';
+    const action = h.kind === 'step' ? `<button class="btn sm" data-action="search-open" data-i="${search.sel}">Open this task</button>`
+      : h.kind === 'note' ? `<button class="btn sm" data-action="search-open" data-i="${search.sel}">Open AI websites</button>`
+      : `<button class="btn sm" data-action="open-folder">Open project folder</button>`;
+    $('#search-preview').innerHTML = `<div class="row"><b style="flex:1;min-width:0;overflow-wrap:anywhere">${esc(h.title)}</b>${action}</div>
+      <div class="small muted">${KIND_LABEL[h.kind].replace(/s$/, '')}${when}</div><pre>${highlight(h.text, words)}</pre>`;
+  }
+  function runSearch() {
+    clearTimeout(search.timer);
+    search.timer = setTimeout(async () => {
+      const q = $('#search-input').value.trim();
+      const seq = ++search.seq;
+      if (!q) { search.hits = []; renderSearch(); return; }
+      try {
+        const r = await api(`/api/search?q=${encodeURIComponent(q)}`);
+        if (seq !== search.seq) return; // a newer keystroke already won
+        // Group like Spotlight: notes, then steps, then files; relevance order within each group.
+        const order = { note: 0, step: 1, file: 2 };
+        search.hits = r.hits.map((h, i) => ({ ...h, rank: i })).sort((a, b) => order[a.kind] - order[b.kind] || a.rank - b.rank);
+        search.sel = 0;
+        renderSearch();
+      } catch (e) { toast(e.message, 'err'); }
+    }, 140);
+  }
+  async function openHit(i) {
+    const h = search.hits[i];
+    if (!h) return;
+    $('#dlg-search').close();
+    if (h.kind === 'step' && h.taskId) { await api(`/api/tasks/${h.taskId}/select`, {}); await refresh(); }
+    else if (h.kind === 'note') openDialog('baton');
+    else await api('/api/workspace/open', {});
+  }
+
   // ---------- Modes & welcome ----------
   const MODES = {
     free: {
@@ -1192,6 +1306,8 @@
     'open-project': () => openDialog('project'),
     'open-setup': () => openDialog('setup'),
     'open-baton': () => openDialog('baton'),
+    'open-search': () => openSearch(),
+    'search-open': (el) => act(() => openHit(Number(el.dataset.i))),
     'welcome-choose': (el) => { welcome.choice = el.dataset.mode; renderWelcome(); },
     'welcome-next': () => act(async () => {
       if (welcome.step === 0) {
@@ -1297,6 +1413,27 @@
     if (el.id === 'set-smart') act(() => saveConfig({ smartRouting: el.checked }));
   });
   document.querySelectorAll('dialog').forEach((dlg) => dlg.addEventListener('close', () => { if (!$('#welcome').hidden) refresh().catch(() => {}); }));
+  $('#search-input').addEventListener('input', runSearch);
+  $('#search-input').addEventListener('keydown', (ev) => {
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      if (!search.hits.length) return;
+      search.sel = (search.sel + (ev.key === 'ArrowDown' ? 1 : -1) + search.hits.length) % search.hits.length;
+      renderSearch();
+    } else if (ev.key === 'Enter') {
+      ev.preventDefault();
+      act(() => openHit(search.sel));
+    }
+  });
+  $('#search-results').addEventListener('click', (ev) => {
+    const li = ev.target.closest('li[role="option"]');
+    if (!li) return;
+    const i = Number(li.dataset.i);
+    if (i === search.sel) act(() => openHit(i)); else { search.sel = i; renderSearch(); }
+  });
+  document.addEventListener('keydown', (ev) => {
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'k') { ev.preventDefault(); openSearch(); }
+  });
   $('#instruction').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); start(); }
   });

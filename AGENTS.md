@@ -72,6 +72,7 @@ Run the `baton` commands **yourself** (they are local and free); don't ask the p
 You may:
 
 - Run `node dist/cli/index.js baton status --json` to see what each site knows and which files each one is missing (`filesToUpload`, with reasons). Commands use the project last opened in AgentMesh; pass `--project <folder>` for another one. Never use this repository as the project.
+- Answer "what did we decide about…?" / "which file has…?" with `node dist/cli/index.js search <words> --json`: it searches every handoff note, every agent step and the project's text files (never `.env`/key files).
 - Save a brief the person pastes to you: write it to a temporary file, then `node dist/cli/index.js baton save --from <chatgpt|claude|gemini> <file>`. If it prints that the markers are missing, tell them the protocol probably isn't set up on that site (`baton protocol` prints it, with where to paste it).
 - Prepare the next hop: `node dist/cli/index.js baton continue --to <site> --json` gives the exact message to paste and the files to attach. Read those files in the project if it helps you explain *why* each one matters, and suggest others from the project that the brief's next steps clearly need.
 - After the person confirms they pasted it: `node dist/cli/index.js baton passed --to <site> <files they actually attached...>`.
