@@ -389,16 +389,16 @@
     codex: { name: 'OpenAI Codex', by: 'OpenAI', cost: 'Needs a ChatGPT Plus, Pro or Business plan.',
       install: WIN ? 'powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"' : 'npm install -g @openai/codex',
       signin: 'Type codex, press Enter and choose "Sign in with ChatGPT".', docs: 'https://github.com/openai/codex' },
-    gemini: { name: 'Google Gemini', by: 'Google', cost: 'Google no longer supports free personal accounts here and points them to Antigravity instead. Needs a Gemini API key or a paid Google plan.',
+    gemini: { name: 'Google Gemini', by: 'Google', free: true, cost: 'Free with a Gemini API key from Google AI Studio (Flash models, about 250 requests a day). Signing in with a free Google account no longer works here.',
       install: 'npm install -g @google/gemini-cli',
-      signin: 'Type gemini, press Enter and choose "Sign in with Google".', docs: 'https://github.com/google-gemini/gemini-cli' },
-    agy: { name: 'Google Antigravity', by: 'Google', cost: 'Sign in with your Google account. This is Google’s option for personal accounts.',
+      signin: 'Get a free key at aistudio.google.com/apikey. Then type gemini, press Enter, choose the Gemini API key option and paste your key there (never paste it into a chat).', docs: 'https://geminicli.com/docs/resources/quota-and-pricing/' },
+    agy: { name: 'Google Antigravity', by: 'Google', free: true, cost: 'Free with a Google account (weekly limits). Higher limits come with Google AI Pro or Ultra.',
       install: WIN ? 'irm https://antigravity.google/cli/install.ps1 | iex' : null,
       signin: 'Type agy and press Enter. A browser opens: sign in.', docs: 'https://antigravity.google/docs/cli/install' },
-    opencode: { name: 'OpenCode', by: 'SST', cost: 'Uses an AI provider account you connect. Some providers bill per use.',
+    opencode: { name: 'OpenCode', by: 'SST', free: true, cost: 'Free models through OpenCode Zen (free OpenCode account). Some free models use your prompts for training; “Space Bunny Free” doesn’t. Other providers may bill per use.',
       install: 'npm install -g opencode-ai',
-      signin: 'Type opencode, press Enter, then type /connect and pick a provider.', docs: 'https://opencode.ai/docs/' },
-    ollama: { name: 'Ollama', by: 'Runs on this computer', cost: 'Free and private. Slower, and the model download is several GB.',
+      signin: 'Type opencode, press Enter, type /connect, choose OpenCode Zen and follow the link to get your key. Then in AgentMesh Settings → Models set OpenCode to opencode/space-bunny-free.', docs: 'https://opencode.ai/docs/zen/' },
+    ollama: { name: 'Ollama', by: 'Runs on this computer', free: true, cost: 'Free and private. Answers questions but can’t edit files. Slower, and the model download is several GB.',
       install: WIN ? 'irm https://ollama.com/install.ps1 | iex' : null,
       signin: null, docs: 'https://ollama.com/download' }
   };
@@ -648,9 +648,9 @@
     const agents = state.data.agents;
     const ready = agents.filter((a) => a.available);
     $('#setup-summary').innerHTML = agents.map((a) => `<span class="check"><span class="dot ${a.available ? 'ok' : 'off'}"></span>${esc(a.name)}</span>`).join('');
-    const order = ['claude', 'codex', 'agy', 'ollama', 'gemini', 'opencode'];
+    const order = ['agy', 'ollama', 'gemini', 'opencode', 'claude', 'codex'];
     const sorted = [...agents].sort((a, b) => (a.available - b.available) || order.indexOf(a.id) - order.indexOf(b.id));
-    $('#setup-agents').innerHTML = (ready.length ? '' : '<p class="small muted" style="margin:0 0 10px">Not sure where to start? If you already pay for Claude or ChatGPT, set that one up first. Otherwise <b>Google Antigravity</b> works with a Google account.</p>') +
+    $('#setup-agents').innerHTML = (ready.length ? '' : '<p class="small muted" style="margin:0 0 10px"><b>No paid AI plans?</b> Start with <b>Google Antigravity</b> (free with a Google account) and <b>Ollama</b> (free, runs on this PC). Add Gemini (free API key) and OpenCode (free models) as backups for when one hits its limit. If you already pay for Claude or ChatGPT, set that one up too.</p>') +
       sorted.map((a) => {
         const g = GUIDE[a.id];
         if (a.available && a.hint) {

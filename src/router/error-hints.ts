@@ -31,7 +31,7 @@ export function fixHint(agentId: string, agentName: string, raw: string): string
     return `${agentName} is out of date. Update it with its install command (Set up agents shows it), then press Check again.`;
   }
   if (/no longer supported for gemini code assist for individuals|migrate to the antigravity/i.test(raw)) {
-    return 'Google no longer supports the Gemini CLI for free personal accounts. Use Google Antigravity instead (Set up agents).';
+    return 'Google no longer lets free personal accounts sign in to the Gemini CLI. Either use it with a free API key from aistudio.google.com/apikey (type gemini and choose the API key option), or use Google Antigravity instead (Set up agents).';
   }
   if (/api key is missing|missing api key|no api key|provider .*not (configured|connected)/i.test(raw)) {
     return agentId === 'opencode'

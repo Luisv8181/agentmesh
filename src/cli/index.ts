@@ -20,12 +20,43 @@ program
 program
   .command('status')
   .description('Show status of agents, rate limits, and the active task')
-  .action(async () => {
+  .option('--json', 'Machine-readable output (for scripts and AI assistants helping with setup)')
+  .action(async (opts) => {
     const selector = new AgentSelector();
     const taskStore = new TaskStore();
+    const statuses = await selector.getStatuses();
+
+    if (opts.json) {
+      const ready = statuses.filter((s) => s.available && s.priority !== null && !s.inCooldown && !s.hint);
+      const config = selector.config.get();
+      const nextSteps = statuses
+        .filter((s) => s.priority !== null && (!s.available || s.hint))
+        .map((s) => ({ agent: s.id, todo: s.hint ?? `${s.name}: ${s.detail ?? 'not available'}. See "Set up agents" in the dashboard.` }));
+      console.log(JSON.stringify({
+        agentmeshVersion: program.version(),
+        node: process.versions.node,
+        platform: process.platform,
+        workspace: process.cwd(),
+        readyAgents: ready.map((s) => s.id),
+        agents: statuses.map((s) => ({
+          id: s.id,
+          name: s.name,
+          installed: s.available,
+          version: s.version,
+          turnedOn: s.priority !== null,
+          cloud: s.subscription,
+          restingForSec: s.inCooldown && s.cooldownUntil ? Math.ceil((s.cooldownUntil - Date.now()) / 1000) : 0,
+          problem: s.hint ?? (s.available ? null : s.detail ?? 'not available')
+        })),
+        settings: { permission: config.permission, autoCommit: config.autoCommit, ollamaModel: config.ollamaModel, models: config.models },
+        nextSteps
+      }, null, 2));
+      return;
+    }
+
     console.log(chalk.bold.cyan('\n=== AgentMesh: Agent Pool Status ===\n'));
 
-    for (const s of await selector.getStatuses()) {
+    for (const s of statuses) {
       const avail = s.available ? chalk.green('✔ READY TO USE') : chalk.red(`✖ ${s.detail ?? 'NOT FOUND'}`);
       let health = chalk.green('READY');
       if (s.priority === null) {
@@ -40,7 +71,9 @@ program
       if (s.version) {
         console.log(`  Version: ${chalk.dim(s.version)} | Command: ${chalk.dim(s.command)}`);
       }
-      if (s.lastError) {
+      if (s.hint) {
+        console.log(`  ${chalk.yellow('To fix:')} ${s.hint}`);
+      } else if (s.lastError) {
         console.log(`  Last Incident: ${chalk.red(s.lastError.slice(0, 90))}`);
       }
       console.log('');
