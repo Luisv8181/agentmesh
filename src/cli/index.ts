@@ -50,6 +50,7 @@ program
           restingForSec: s.inCooldown && s.cooldownUntil ? Math.ceil((s.cooldownUntil - Date.now()) / 1000) : 0,
           problem: s.hint ?? (s.available ? null : s.detail ?? 'not available')
         })),
+        mode: config.mode ?? 'not chosen yet (the person picks it on the AgentMesh welcome screen)',
         settings: { permission: config.permission, autoCommit: config.autoCommit, ollamaModel: config.ollamaModel, models: config.models },
         nextSteps
       }, null, 2));

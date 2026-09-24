@@ -200,6 +200,7 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
           runs: t.runs?.length ?? 0
         })),
         currentTaskId: current?.taskId ?? null,
+        suggestedMode: suggestMode(await selector.getStatuses()),
         run: runSnapshot(),
         usage: { claude: globalTokenTracker.readClaudeStats() ?? null, codex: globalTokenTracker.readCodexStats() ?? null },
         platform: process.platform
@@ -279,6 +280,7 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
 
     if (m === 'POST' && p === '/api/config') {
       const body = (await readJson(req)) as Partial<AgentMeshConfig>;
+      if (body.mode === 'subscriptions' || body.mode === 'free') config.setMode(body.mode);
       const patch: Partial<AgentMeshConfig> = {};
       if (Array.isArray(body.priority)) patch.priority = body.priority;
       if (typeof body.autoCommit === 'boolean') patch.autoCommit = body.autoCommit;
@@ -475,6 +477,16 @@ function serveDashboard(res: http.ServerResponse, token: string): void {
     res.writeHead(500, { 'Content-Type': 'text/plain' });
     res.end(`Error loading dashboard: ${err instanceof Error ? err.message : String(err)}`);
   }
+}
+
+/** Recommends a mode from what's installed and working: a paid-plan CLI means "subscriptions". */
+export function suggestMode(agents: { id: string; available: boolean; hint?: string }[]): { mode: 'subscriptions' | 'free'; reason: string } {
+  const paid = agents.filter((a) => (a.id === 'claude' || a.id === 'codex') && a.available && !a.hint);
+  if (paid.length) {
+    const names = paid.map((a) => (a.id === 'claude' ? 'Claude Code' : 'OpenAI Codex')).join(' and ');
+    return { mode: 'subscriptions', reason: `We found ${names} on this PC.` };
+  }
+  return { mode: 'free', reason: 'No paid AI tools found on this PC.' };
 }
 
 function safeEqual(a: string, b: string): boolean {

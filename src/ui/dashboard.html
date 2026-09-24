@@ -179,6 +179,39 @@
 
   .scrim { display: none; }
 
+  /* Welcome flow: one question per screen */
+  .welcome { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow-y: auto; display: flex; justify-content: center; padding: 56px 20px 40px; }
+  .welcome-inner { width: min(640px, 100%); display: flex; flex-direction: column; gap: 22px; margin: auto 0; }
+  .welcome h1 { font-size: 28px; letter-spacing: -.02em; font-weight: 650; }
+  .welcome .lead { font-size: 16px; color: var(--muted); margin: -10px 0 0; }
+  .dots { display: flex; gap: 6px; }
+  .dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--border); transition: background .2s, width .2s; }
+  .dots span.on { background: var(--text); width: 18px; border-radius: 3px; }
+  .step { animation: rise .28s ease-out; display: flex; flex-direction: column; gap: 18px; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .choice { display: block; width: 100%; text-align: left; border: 1.5px solid var(--border); background: var(--surface); border-radius: 16px; padding: 20px 22px; font-size: 14.5px; cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
+  .choice:hover { border-color: color-mix(in srgb, var(--text) 30%, var(--border)); }
+  .choice[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .choice .c-title { font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .choice .c-body { color: var(--muted); margin-top: 4px; }
+  .choice .c-use { margin-top: 10px; font-size: 13px; }
+  .badge { font-size: 11px; font-weight: 600; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 8px; }
+  .welcome-foot { display: flex; align-items: center; gap: 12px; }
+  .btn.lg { padding: 10px 22px; font-size: 15px; }
+  .linkish { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 4px; font-size: 13.5px; }
+  .linkish:hover { color: var(--text); }
+  .todo { display: flex; gap: 14px; align-items: flex-start; border: 1px solid var(--border); background: var(--surface); border-radius: 14px; padding: 16px 18px; }
+  .todo .num { width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-weight: 600; flex: none; }
+  .todo.done .num { background: var(--ok-soft); color: var(--ok); }
+  .mode-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); padding: 0 8px; }
+  .segmented { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 3px; background: var(--surface-2); }
+  .segmented button { border: 0; background: none; border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 13px; color: var(--muted); }
+  .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow), 0 0 0 1px var(--border); font-weight: 600; }
+  .sites-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+  .site-tile { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: var(--bg); font-size: 12.5px; }
+  .site-tile b { display: flex; align-items: center; gap: 6px; font-size: 13.5px; }
+  @media (max-width: 560px) { .sites-strip { grid-template-columns: 1fr; } .welcome { padding-top: 28px; } .welcome h1 { font-size: 24px; } }
+
   @keyframes pulse { 50% { opacity: .35; } }
   @keyframes slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(310%); } }
   @media (prefers-reduced-motion: reduce) {
@@ -209,6 +242,7 @@
       <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor" opacity=".9"/><g style="stroke:var(--bg)" stroke-width="1.8" fill="none"><path d="M10 11L22 11L16 22Z"/></g><g style="fill:var(--bg)"><circle cx="10" cy="11" r="3"/><circle cx="22" cy="11" r="3"/><circle cx="16" cy="22" r="3"/></g></svg>
       AgentMesh
     </div>
+    <button class="mode-chip linkish" id="mode-chip" data-action="open-settings" hidden></button>
 
     <div>
       <div class="group-label">Project folder</div>
@@ -244,12 +278,21 @@
       <button class="btn sm menu-btn" data-action="open-drawer" aria-label="Show tasks">☰</button>
       <div class="pills" id="pills" aria-label="Agents"></div>
       <label class="switch" title="Only use the free agent that runs on this computer (Ollama). Paid subscriptions are never touched.">
-        <input type="checkbox" id="safe-toggle"> Free local mode
+        <input type="checkbox" id="safe-toggle"> This PC only
       </label>
     </div>
 
     <div class="content">
       <div id="notices"></div>
+
+      <section class="card card-pad" id="web-card" hidden aria-labelledby="web-card-title">
+        <div class="row">
+          <h2 id="web-card-title" style="flex:1">Your AI websites</h2>
+          <button class="btn primary" data-action="open-baton">Switch to another site</button>
+        </div>
+        <p class="small muted" style="margin:6px 0 0">Out of free messages? Type <b>mesh wrap</b> where you are, then switch. AgentMesh tells the next site what it needs to know.</p>
+        <div class="sites-strip" id="web-card-sites"></div>
+      </section>
 
       <section class="card composer" aria-labelledby="task-heading">
         <div class="card-pad">
@@ -283,6 +326,14 @@
       </section>
     </div>
   </main>
+</div>
+
+<!-- Welcome: first run, one question per screen -->
+<div class="welcome" id="welcome" hidden role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+  <div class="welcome-inner">
+    <div class="row"><div class="dots" id="welcome-dots" aria-hidden="true"><span></span><span></span><span></span></div><span class="spacer"></span><button class="linkish" id="welcome-back" data-action="welcome-back" hidden>← Back</button></div>
+    <div id="welcome-step"></div>
+  </div>
 </div>
 
 <!-- Project dialog -->
@@ -337,6 +388,14 @@
 <dialog id="dlg-settings" aria-labelledby="dlg-settings-title">
   <div class="dlg-head"><h2 id="dlg-settings-title">Settings</h2><span class="spacer"></span><button class="btn sm ghost" data-close>Close</button></div>
   <div class="dlg-body">
+    <div>
+      <div class="section-title">Mode</div>
+      <div class="segmented" role="group" aria-label="Mode">
+        <button data-action="set-mode" data-mode="free" aria-pressed="false">Free AI</button>
+        <button data-action="set-mode" data-mode="subscriptions" aria-pressed="false">I pay for AI</button>
+      </div>
+      <p class="small muted" id="mode-explain" style="margin:8px 0 0"></p>
+    </div>
     <div>
       <div class="section-title">Order agents are tried in. If one hits its usage limit, the next one takes over.</div>
       <ul class="order-list" id="order-list"></ul>
@@ -498,6 +557,7 @@
     state.data = data;
     if (data.run && data.run.runId !== state.dismissed && (!state.run || state.run.runId === data.run.runId || data.run.status === 'running')) state.run = data.run;
     state.task = data.currentTaskId ? await api(`/api/tasks/${data.currentTaskId}`) : null;
+    if (data.config.mode === 'free' || !$('#welcome').hidden) state.baton = await api('/api/baton').catch(() => state.baton);
     render();
   }
 
@@ -545,10 +605,13 @@
     renderRun();
     renderHistory();
     renderNotices();
+    renderModeUI();
+    renderWelcome();
   }
 
   function renderPills() {
-    $('#pills').innerHTML = state.data.agents.map((a) => {
+    // Turned-off agents live in Settings only; the strip shows what can actually work for you.
+    $('#pills').innerHTML = state.data.agents.filter((a) => a.priority !== null).map((a) => {
       const s = agentState(a);
       return `<button class="pill" data-action="${s.cooldown ? 'agent-reset' : 'open-setup'}" data-agent="${a.id}" title="${esc(a.hint || (s.cooldown ? 'Hit its usage limit. Click to let it try again now.' : a.detail || a.version || ''))}">
         <span class="dot ${s.cls}"></span>${esc(a.name)} <span class="state" data-cooldown="${s.cooldown ? a.cooldownUntil : ''}">${esc(s.label)}</span></button>`;
@@ -686,7 +749,7 @@
     }
     if (d.safeMode) {
       const ollama = d.agents.find((a) => a.id === 'ollama');
-      notes.push(`<div class="banner info"><span>🛡️</span><span>Free local mode is on: only Ollama on this computer is used. Paid subscriptions are never touched.${ollama && !ollama.available ? ` <b>Ollama isn't ready:</b> ${esc(ollama.detail || '')}` : ''}</span></div>`);
+      notes.push(`<div class="banner info"><span>🛡️</span><span>“This PC only” is on: only Ollama on this computer is used. No online AI is touched.${ollama && !ollama.available ? ` <b>Ollama isn't ready:</b> ${esc(ollama.detail || '')}` : ''}</span></div>`);
     }
     $('#notices').innerHTML = notes.join('');
   }
@@ -812,6 +875,111 @@
     if ($('#dlg-settings').open) renderSettings();
   }
 
+  // ---------- Modes & welcome ----------
+  const MODES = {
+    free: {
+      title: 'I use free AI',
+      body: 'ChatGPT, Claude or Gemini on the web, without paying. AgentMesh moves your work between them when one runs out, and adds free helpers on your computer.',
+      use: 'Use this if you don’t pay for any AI plan.',
+      explain: 'Free AI: the AI-websites relay comes first, only free helpers are used (Antigravity, Gemini with a free key, OpenCode free models, Ollama), and questions go to the free local model first so your limits last longer.'
+    },
+    subscriptions: {
+      title: 'I pay for AI',
+      body: 'Claude Pro/Max, ChatGPT Plus/Pro, or similar. AgentMesh runs coding agents on your computer and switches to the next one when one hits its limit.',
+      use: 'Use this if you have Claude Code or Codex, or pay for Claude or ChatGPT.',
+      explain: 'I pay for AI: your paid coding agents (Claude Code, Codex) go first, then free ones as backup. The AI-websites relay is still there if you want it.'
+    }
+  };
+  const welcome = { step: 0, choice: null };
+
+  function showWelcome(step = 0) {
+    welcome.step = step;
+    welcome.choice = state.data.config.mode || state.data.suggestedMode?.mode || null;
+    $('#welcome').hidden = false;
+    renderWelcome();
+  }
+  function hideWelcome() { $('#welcome').hidden = true; }
+
+  function renderWelcome() {
+    if ($('#welcome').hidden) return;
+    const d = state.data;
+    document.querySelectorAll('#welcome-dots span').forEach((el, i) => el.classList.toggle('on', i === welcome.step));
+    $('#welcome-back').hidden = welcome.step === 0;
+    const el = $('#welcome-step');
+    const sug = d.suggestedMode;
+
+    if (welcome.step === 0) {
+      el.innerHTML = `<div class="step">
+        <h1 id="welcome-title" tabindex="-1" style="outline:none">Welcome to AgentMesh</h1>
+        <p class="lead">One question to set things up the way you use AI.</p>
+        ${['free', 'subscriptions'].map((m) => `<button class="choice" data-action="welcome-choose" data-mode="${m}" aria-pressed="${welcome.choice === m}">
+          <div class="c-title">${MODES[m].title}${sug?.mode === m ? ' <span class="badge">Recommended</span>' : ''}</div>
+          <div class="c-body">${MODES[m].body}</div>
+          <div class="c-use"><b>${MODES[m].use}</b>${sug?.mode === m ? ` <span class="muted">${esc(sug.reason)}</span>` : ''}</div>
+        </button>`).join('')}
+        <div class="welcome-foot"><button class="btn primary lg" data-action="welcome-next" ${welcome.choice ? '' : 'disabled'}>Continue</button>
+          <span class="small muted">Not sure? Choose free. You can switch any time in Settings.</span></div>
+      </div>`;
+    } else if (welcome.step === 1) {
+      const broad = /^(documents|desktop|downloads|onedrive|home|users?)$/i.test(folderName(d.workspace)) || d.workspace.split(/[\\/]/).filter(Boolean).length <= 3;
+      el.innerHTML = `<div class="step">
+        <h1 id="welcome-title" tabindex="-1" style="outline:none">Where does your project live?</h1>
+        <p class="lead">Pick the folder for the thing you’re working on. AI helpers only ever work inside it.</p>
+        <div class="todo"><div class="num">📁</div><div style="flex:1;min-width:0"><b>${esc(folderName(d.workspace))}</b><div class="small muted" style="overflow-wrap:anywhere">${esc(d.workspace)}</div>
+          ${broad ? '<div class="small" style="margin-top:6px;color:var(--warn)">This looks like a big general folder. Choose the folder for one project instead.</div>' : ''}</div>
+          <button class="btn" data-action="open-project">Change</button></div>
+        <div class="welcome-foot"><button class="btn primary lg" data-action="welcome-next">Use this folder</button></div>
+      </div>`;
+    } else {
+      const free = d.config.mode === 'free';
+      const agentsReady = d.agents.filter((a) => a.available && !a.hint && a.priority !== null);
+      const paidReady = agentsReady.some((a) => a.id === 'claude' || a.id === 'codex');
+      const freeReady = agentsReady.some((a) => ['agy', 'gemini', 'opencode', 'ollama'].includes(a.id));
+      const sitesDone = state.baton ? ['chatgpt', 'claude', 'gemini'].filter((s) => state.baton.knowledge[s].protocolInstalled).length : 0;
+      const todos = free
+        ? [
+            { done: sitesDone > 0, title: 'Teach your AI websites the magic words', body: `Paste one short text into ChatGPT, Claude and Gemini’s settings. ${sitesDone ? `${sitesDone} of 3 done.` : 'Takes about two minutes.'}`, action: 'open-baton', label: sitesDone ? 'Review' : 'Start' },
+            { done: freeReady, title: 'Add a free helper on your computer', body: freeReady ? `Ready: ${agentsReady.filter((a) => a.id !== 'claude' && a.id !== 'codex').map((a) => esc(a.name)).join(', ')}.` : 'Google Antigravity is free with a Google account. Optional, but it can make changes to your files for you.', action: 'open-setup', label: freeReady ? 'Review' : 'Set up' }
+          ]
+        : [
+            { done: paidReady, title: 'Connect your AI tools', body: paidReady ? `Ready: ${agentsReady.map((a) => esc(a.name)).join(', ')}.` : 'Sign in to Claude Code or Codex from the command line. The setup screen shows exactly how.', action: 'open-setup', label: paidReady ? 'Review' : 'Set up' },
+            { done: sitesDone > 0, title: 'Optional: use AI websites too', body: 'Move work between ChatGPT, Claude and Gemini with the magic words.', action: 'open-baton', label: 'Set up' }
+          ];
+      el.innerHTML = `<div class="step">
+        <h1 id="welcome-title" tabindex="-1" style="outline:none">${free ? 'Two quick things' : 'Almost there'}</h1>
+        <p class="lead">${free ? 'Then you’re ready to go.' : 'Connect what you pay for, and AgentMesh does the switching for you.'}</p>
+        ${todos.map((t, i) => `<div class="todo ${t.done ? 'done' : ''}"><div class="num">${t.done ? '✓' : i + 1}</div>
+          <div style="flex:1"><b>${t.title}</b><div class="small muted" style="margin-top:2px">${t.body}</div></div>
+          <button class="btn ${t.done ? '' : 'primary'}" data-action="${t.action}">${t.label}</button></div>`).join('')}
+        <div class="welcome-foot"><button class="btn ${todos[0].done ? 'primary' : ''} lg" data-action="welcome-finish">${todos[0].done ? 'Start using AgentMesh' : 'Skip for now'}</button></div>
+      </div>`;
+    }
+    // Animate and move focus only when the step changes, not on background refreshes.
+    const stepEl = el.querySelector('.step');
+    if (welcome.lastStep === welcome.step) stepEl?.style.setProperty('animation', 'none');
+    else el.querySelector('h1')?.focus();
+    welcome.lastStep = welcome.step;
+  }
+
+  function renderModeUI() {
+    const d = state.data;
+    const mode = d.config.mode;
+    $('#mode-chip').hidden = !mode;
+    $('#mode-chip').textContent = mode === 'free' ? '● Free AI mode' : mode === 'subscriptions' ? '● Paid AI mode' : '';
+    const showWeb = mode === 'free' && state.baton;
+    $('#web-card').hidden = !showWeb;
+    if (showWeb) {
+      $('#web-card-sites').innerHTML = ['chatgpt', 'claude', 'gemini'].map((s) => {
+        const k = state.baton.knowledge[s];
+        const dot = !k.protocolInstalled ? 'off' : k.upToDate ? 'ok' : 'warn';
+        return `<div class="site-tile"><b><span class="dot ${dot}"></span>${esc(state.baton.sites[s].name)}</b><div class="muted" style="margin-top:3px">${esc(k.protocolInstalled ? k.summary : 'Magic words not set up yet.')}</div></div>`;
+      }).join('');
+      $('#task-heading').textContent = state.task ? state.task.title : 'Ask a helper on your computer';
+    }
+    document.querySelectorAll('[data-action="set-mode"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    $('#mode-explain').textContent = mode ? MODES[mode].explain : '';
+  }
+
   // ---------- AI websites (baton) ----------
   const SITES = ['chatgpt', 'claude', 'gemini'];
   async function loadBaton() {
@@ -893,7 +1061,7 @@
     rate_limit_hit: (e) => (e.details?.reason || '').startsWith('Error:') ? `${agentName(e.agentId)} ran into a problem; resting briefly` : `${agentName(e.agentId)} hit its usage limit; resting ${Math.round((e.details?.cooldownDurationMs || 0) / 60000) || 1} min`,
     handoff_triggered: (e) => `Handed over from ${agentName(e.details?.fromAgent)} to ${agentName(e.details?.toAgent)}`,
     cooldown_expired: (e) => `${agentName(e.agentId)} is ready again`,
-    safe_mode_toggled: (e) => `Free local mode ${e.details?.safeMode ? 'turned on' : 'turned off'}`
+    safe_mode_toggled: (e) => `This PC only ${e.details?.safeMode ? 'turned on' : 'turned off'}`
   };
   function addEvent(e) {
     if (!EVENT_TEXT[e.type]) return;
@@ -1017,6 +1185,23 @@
     'open-project': () => openDialog('project'),
     'open-setup': () => openDialog('setup'),
     'open-baton': () => openDialog('baton'),
+    'welcome-choose': (el) => { welcome.choice = el.dataset.mode; renderWelcome(); },
+    'welcome-next': () => act(async () => {
+      if (welcome.step === 0) {
+        if (!welcome.choice) return;
+        await api('/api/config', { mode: welcome.choice });
+      }
+      welcome.step = Math.min(2, welcome.step + 1);
+      await refresh();
+    }),
+    'welcome-back': () => { welcome.step = Math.max(0, welcome.step - 1); renderWelcome(); },
+    'welcome-finish': () => act(async () => { await api('/api/config', { onboarded: true }); hideWelcome(); await refresh(); toast('You’re all set.'); }),
+    'set-mode': (el) => act(async () => {
+      await api('/api/config', { mode: el.dataset.mode });
+      await refresh();
+      renderSettings();
+      toast(el.dataset.mode === 'free' ? 'Switched to Free AI mode.' : 'Switched to Paid AI mode.');
+    }),
     'copy-protocol': () => navigator.clipboard.writeText(state.baton.protocol).then(() => toast('Copied. Paste it into the site’s instructions setting.')),
     'baton-save': () => act(async () => {
       const text = $('#baton-brief').value.trim();
@@ -1104,6 +1289,7 @@
     if (el.id === 'baton-file-input') { uploadFiles(el.files); el.value = ''; }
     if (el.id === 'set-smart') act(() => saveConfig({ smartRouting: el.checked }));
   });
+  document.querySelectorAll('dialog').forEach((dlg) => dlg.addEventListener('close', () => { if (!$('#welcome').hidden) refresh().catch(() => {}); }));
   $('#instruction').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); start(); }
   });
@@ -1131,7 +1317,8 @@
   refresh()
     .then(() => {
       connect();
-      if (!state.data.config.onboarded) openDialog('setup');
+      if (!state.data.config.mode) showWelcome(0);
+      else if (!state.data.config.onboarded) showWelcome(2);
     })
     .catch((e) => {
       document.querySelector('.content').innerHTML = `<div class="banner err"><span>⚠️</span><span>Couldn't load AgentMesh: ${esc(e.message)}. Reload this page, or restart AgentMesh.</span></div>`;

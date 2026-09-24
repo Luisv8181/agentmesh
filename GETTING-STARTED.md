@@ -32,7 +32,12 @@ Open the extracted folder and double-click **Start AgentMesh**.
 
 ## 4. First-time setup (in the browser)
 
-A setup screen opens automatically.
+AgentMesh first asks **how you use AI**:
+
+- **I use free AI**: choose this if you don't pay for any AI plan. You'll mostly work in the ChatGPT, Claude and Gemini websites, and AgentMesh helps you switch between them.
+- **I pay for AI**: choose this if you pay for Claude or ChatGPT, or use Claude Code or Codex.
+
+Not sure? Choose free. You can change it any time in **Settings**. Then it walks you through the rest, one step at a time:
 
 **Step 1: pick your project folder.** This is the folder the assistants are allowed to work in. Click **Change**, then **Browse…**.
 
@@ -79,7 +84,7 @@ If you use Antigravity, you can also just tell it "I'm switching from ChatGPT to
 
 ## Good to know
 
-- **Free local mode** (switch at the top right) uses only Ollama, which runs on your own computer. Your paid subscriptions are never touched in this mode. Ollama can read your project and suggest changes, but it can't edit files itself.
+- **This PC only** (switch at the top right) uses only Ollama, which runs on your own computer. Your paid subscriptions are never touched in this mode. Ollama can read your project and suggest changes, but it can't edit files itself.
 - **Settings** lets you choose which assistants to use and in what order, and whether they may edit files at all.
 - If an assistant hits its limit, its dot turns amber with a countdown. AgentMesh automatically moves on to the next one.
 - AgentMesh only works on your own computer. Nobody else can reach the page.

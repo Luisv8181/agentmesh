@@ -8,6 +8,20 @@
 
 AgentMesh coordinates developer subscriptions and CLI agents (**Claude Code**, **OpenAI Codex**, **Google Antigravity CLI / agy**, **OpenCode AI**, **Google Gemini**, and **Local Ollama**) across a shared workspace.
 
+## Which mode is for me?
+
+AgentMesh asks you this the first time you open it. You can switch any time in Settings.
+
+| | **Free AI mode** | **Paid AI mode** |
+|---|---|---|
+| **Use this if…** | You don't pay for any AI plan | You pay for Claude (Pro/Max) or ChatGPT (Plus/Pro), or use Claude Code / Codex |
+| **Where you work** | ChatGPT, Claude and Gemini websites, plus free helpers on your PC | Coding agents on your PC, working directly in your project folder |
+| **When one runs out** | Type `mesh wrap`, and AgentMesh hands your work to the next website with exactly the files it needs | AgentMesh switches to the next agent automatically, with a handoff brief |
+| **Helpers used** | Google Antigravity (free Google account), Gemini CLI (free API key), OpenCode (free models), Ollama (runs locally) | Claude Code, Codex first, then the free helpers as backup |
+| **Costs** | Nothing | Only your existing plans; nothing extra |
+
+Not sure? Choose **Free AI mode**. **Not a programmer?** Start with [GETTING-STARTED.md](GETTING-STARTED.md): double-click **Start AgentMesh** and it walks you through the rest. **Helping someone set it up with an AI assistant?** Point it at this repo; [AGENTS.md](AGENTS.md) tells it exactly what to do and what not to do.
+
 ```text
              ┌────────────────────┐
              │    AgentMesh       │

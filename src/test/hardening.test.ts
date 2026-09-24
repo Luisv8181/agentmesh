@@ -469,3 +469,23 @@ test('Smart routing: if Ollama fails on a question, the next agent answers read-
   assert.strictEqual(res.agent, 'agy');
   assert.strictEqual(agyPermission, 'readonly');
 });
+
+test('Choosing a mode applies its defaults; free mode never lists paid-plan agents', () => {
+  const cfg = freshConfig();
+  assert.strictEqual(cfg.get().mode, null, 'no mode until the person chooses');
+  const free = cfg.setMode('free');
+  assert.strictEqual(free.mode, 'free');
+  assert.strictEqual(free.smartRouting, true);
+  assert.ok(!free.priority.includes('claude') && !free.priority.includes('codex'));
+  const paid = cfg.setMode('subscriptions');
+  assert.deepStrictEqual(paid.priority.slice(0, 2), ['claude', 'codex']);
+  assert.strictEqual(paid.smartRouting, false);
+});
+
+test('Suggested mode: a working paid-plan CLI means "I pay for AI"; a broken one does not', async () => {
+  const { suggestMode } = await import('../ui/server.js');
+  assert.strictEqual(suggestMode([{ id: 'claude', available: true }]).mode, 'subscriptions');
+  assert.match(suggestMode([{ id: 'claude', available: true }]).reason, /Claude Code/);
+  assert.strictEqual(suggestMode([{ id: 'claude', available: true, hint: 'needs you to sign in again' }, { id: 'agy', available: true }]).mode, 'free');
+  assert.strictEqual(suggestMode([{ id: 'ollama', available: true }]).mode, 'free');
+});

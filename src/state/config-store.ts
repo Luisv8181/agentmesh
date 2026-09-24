@@ -5,7 +5,20 @@ import { AgentId } from '../types.js';
 
 export const ALL_AGENTS: AgentId[] = ['claude', 'codex', 'agy', 'gemini', 'opencode', 'ollama'];
 
+export type Mode = 'subscriptions' | 'free';
+
+/**
+ * Defaults each mode applies when chosen. Subscriptions: coding agents first, failover between paid plans.
+ * Free: free helpers only, and smart routing on so free quotas last.
+ */
+export const MODE_PRESETS: Record<Mode, Pick<AgentMeshConfig, 'priority' | 'smartRouting'>> = {
+  subscriptions: { priority: ['claude', 'codex', 'agy', 'gemini', 'opencode', 'ollama'], smartRouting: false },
+  free: { priority: ['agy', 'gemini', 'opencode', 'ollama'], smartRouting: true }
+};
+
 export interface AgentMeshConfig {
+  /** How the person uses AI; null until they choose on the welcome screen. */
+  mode: Mode | null;
   /** Order agents are tried in. Agents not listed are never used. */
   priority: AgentId[];
   /** Commit tracked, modified files to git when one agent hands off to another. */
@@ -22,6 +35,7 @@ export interface AgentMeshConfig {
 }
 
 export const DEFAULT_CONFIG: AgentMeshConfig = {
+  mode: null,
   priority: [...ALL_AGENTS],
   autoCommit: false,
   permission: 'edit',
@@ -66,6 +80,11 @@ export class ConfigStore {
     return this.get();
   }
 
+  /** Switches mode and applies its defaults (agent order, smart routing). */
+  setMode(mode: Mode): AgentMeshConfig {
+    return this.update({ mode, ...MODE_PRESETS[mode], priority: [...MODE_PRESETS[mode].priority] });
+  }
+
   rememberWorkspace(dir: string): void {
     const recent = [dir, ...this.config.recentWorkspaces.filter((d) => d !== dir)].slice(0, 8);
     this.update({ recentWorkspaces: recent });
@@ -77,6 +96,7 @@ function sanitize(c: AgentMeshConfig): AgentMeshConfig {
     ? c.priority.filter((a, i, arr): a is AgentId => ALL_AGENTS.includes(a) && arr.indexOf(a) === i)
     : [...ALL_AGENTS];
   return {
+    mode: c.mode === 'subscriptions' || c.mode === 'free' ? c.mode : null,
     priority,
     autoCommit: c.autoCommit === true,
     permission: c.permission === 'readonly' ? 'readonly' : 'edit',
