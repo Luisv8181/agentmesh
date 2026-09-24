@@ -567,7 +567,14 @@
     const running = state.run && state.run.status === 'running' && state.run.agent === a.id;
     if (running) return { cls: 'busy', label: 'Working' };
     if (a.priority === null) return { cls: 'off', label: 'Turned off' };
-    if (!a.available) return { cls: 'off', label: a.detail && a.id === 'ollama' && a.detail.startsWith('Model') ? 'Needs model' : 'Not set up' };
+    if (!a.available) {
+      const d = a.detail || '';
+      const label = a.id === 'ollama' && d.startsWith('Model') ? 'Needs model'
+        : /not signed in|signed in with a google account/i.test(d) ? 'Needs sign-in'
+        : /not connected|no key was found/i.test(d) ? 'Needs setup'
+        : 'Not set up';
+      return { cls: label === 'Not set up' ? 'off' : 'err', label };
+    }
     if (d.safeMode && a.subscription) return { cls: '', label: 'Paused (free mode)' };
     if (a.hint) return { cls: 'err', label: /usage credits/i.test(a.hint) ? 'Out of credits' : /sign in/i.test(a.hint) ? 'Needs sign-in' : /out of date/i.test(a.hint) ? 'Needs update' : 'Needs attention' };
     if (a.inCooldown && a.cooldownUntil) return { cls: 'warn', label: `Resting ${fmtLeft(a.cooldownUntil)}`, cooldown: true };

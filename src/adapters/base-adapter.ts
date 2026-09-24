@@ -26,10 +26,22 @@ export interface Availability {
   version: string | null;
   /** Human-readable reason when not available (e.g. "model not downloaded"). */
   detail?: string;
+  /** See SignIn.authType. */
+  authType?: string;
+}
+
+export interface SignIn {
+  state: 'in' | 'out' | 'unknown';
+  /** What to do, in plain language, when signed out. */
+  detail?: string;
+  /** 'google-account' for Gemini CLI signed in with a personal Google account (free accounts are rejected). */
+  authType?: string;
 }
 
 export const DEFAULT_TIMEOUT_MS = 15 * 60_000;
 const AVAILABILITY_TTL_MS = 60_000;
+/** Sign-in checks spawn a CLI (and agy makes a network call), so they refresh less often than --version. */
+const SIGN_IN_TTL_MS = 10 * 60_000;
 
 export abstract class BaseAdapter {
   abstract readonly id: AgentId;
@@ -37,16 +49,43 @@ export abstract class BaseAdapter {
   abstract readonly command: string;
 
   private availabilityCache: { value: Availability; at: number } | null = null;
+  private signInCache: { value: SignIn; at: number } | null = null;
 
   abstract execute(prompt: string, options?: ExecuteOptions): Promise<AdapterExecutionResult>;
 
+  /**
+   * Installed AND signed in. Uses each CLI's own local status command (no prompt is sent, nothing is
+   * charged), so "Ready" means the agent will actually work rather than fail at its first run.
+   */
   public async isAvailable(force = false): Promise<Availability> {
     if (!force && this.availabilityCache && Date.now() - this.availabilityCache.at < AVAILABILITY_TTL_MS) {
       return this.availabilityCache.value;
     }
-    const value = await this.probe();
+    let value = await this.probe();
+    if (value.available) {
+      const signIn = await this.signInStatus(force);
+      if (signIn.state === 'out') value = { available: false, version: value.version, detail: signIn.detail ?? 'Not signed in' };
+      else if (signIn.authType) value = { ...value, authType: signIn.authType };
+    }
     this.availabilityCache = { value, at: Date.now() };
     return value;
+  }
+
+  public async signInStatus(force = false): Promise<SignIn> {
+    if (!force && this.signInCache && Date.now() - this.signInCache.at < SIGN_IN_TTL_MS) return this.signInCache.value;
+    let value: SignIn;
+    try {
+      value = await this.checkSignIn();
+    } catch {
+      value = { state: 'unknown' };
+    }
+    this.signInCache = { value, at: Date.now() };
+    return value;
+  }
+
+  /** Override per CLI. Default: no way to tell, so don't block. */
+  protected async checkSignIn(): Promise<SignIn> {
+    return { state: 'unknown' };
   }
 
   protected async probe(): Promise<Availability> {

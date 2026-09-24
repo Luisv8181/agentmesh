@@ -489,3 +489,63 @@ test('Suggested mode: a working paid-plan CLI means "I pay for AI"; a broken one
   assert.strictEqual(suggestMode([{ id: 'claude', available: true, hint: 'needs you to sign in again' }, { id: 'agy', available: true }]).mode, 'free');
   assert.strictEqual(suggestMode([{ id: 'ollama', available: true }]).mode, 'free');
 });
+
+test('"Ready" means signed in: a signed-out CLI is not available, with the exact sign-in step', async () => {
+  const { BaseAdapter } = await import('../adapters/base-adapter.js');
+  class SignedOut extends BaseAdapter {
+    readonly id = 'codex' as AgentId;
+    readonly name = 'OpenAI Codex';
+    readonly command = 'codex';
+    protected override async probe() { return { available: true, version: 'codex-cli 1.0' }; }
+    protected override async checkSignIn() { return { state: 'out' as const, detail: 'Not signed in. Open PowerShell, type codex login, and sign in with ChatGPT.' }; }
+    async execute(): Promise<AdapterExecutionResult> { throw new Error('must not run'); }
+  }
+  const a = await new SignedOut().isAvailable(true);
+  assert.strictEqual(a.available, false);
+  assert.match(a.detail ?? '', /codex login/);
+});
+
+test('Gemini: API-key setup counts as signed in; Google-account sign-in is flagged; nothing set up is signed out', async () => {
+  const { GeminiAdapter } = await import('../adapters/gemini-adapter.js');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'agentmesh-gemini-'));
+  const saved = process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  try {
+    const check = () => (new GeminiAdapter(home) as unknown as { signInStatus(f: boolean): Promise<{ state: string; authType?: string }> }).signInStatus(true);
+    assert.strictEqual((await check()).state, 'out');
+    fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ security: { auth: { selectedType: 'gemini-api-key' } } }));
+    assert.strictEqual((await check()).state, 'out', 'API-key mode but no key');
+    fs.writeFileSync(path.join(home, '.env'), 'GEMINI_API_KEY=abc123\n');
+    assert.strictEqual((await check()).state, 'in');
+    fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ security: { auth: { selectedType: 'oauth-personal' } } }));
+    assert.strictEqual((await check()).authType, 'google-account');
+  } finally {
+    if (saved !== undefined) process.env.GEMINI_API_KEY = saved;
+  }
+});
+
+test('Sign-in checks parse the real outputs of claude, codex and opencode', async () => {
+  const { ClaudeAdapter } = await import('../adapters/claude-adapter.js');
+  const { CodexAdapter } = await import('../adapters/codex-adapter.js');
+  const { OpenCodeAdapter } = await import('../adapters/opencode-adapter.js');
+  // Captured 2026-09-24 on Windows.
+  const outputs: Record<string, string> = {
+    claude: '{\n  "loggedIn": true,\n  "authMethod": "claude.ai",\n  "apiProvider": "firstParty"\n}',
+    claudeOut: '{\n  "loggedIn": false\n}',
+    codex: 'Logged in using ChatGPT',
+    codexOut: 'Not logged in',
+    opencode: '┌  Credentials \u001b[90m~\.local\share\opencode\auth.json\n│\n└  0 credentials\n\n┌  Environment\n│\n●  Google \u001b[90mGEMINI_API_KEY\n│\n└  1 environment variable',
+    opencodeIn: '┌  Credentials\n│\n●  OpenCode Zen\n│\n└  1 credentials'
+  };
+  const withOutput = <T extends BaseAdapter>(a: T, out: string): T => {
+    a.runProcess = async () => ({ success: true, output: out, durationMs: 1 });
+    return a;
+  };
+  const state = async (a: BaseAdapter) => (await a.signInStatus(true)).state;
+  assert.strictEqual(await state(withOutput(new ClaudeAdapter(), outputs.claude)), 'in');
+  assert.strictEqual(await state(withOutput(new ClaudeAdapter(), outputs.claudeOut)), 'out');
+  assert.strictEqual(await state(withOutput(new CodexAdapter(), outputs.codex)), 'in');
+  assert.strictEqual(await state(withOutput(new CodexAdapter(), outputs.codexOut)), 'out');
+  assert.strictEqual(await state(withOutput(new OpenCodeAdapter(), outputs.opencode)), 'out', 'env-var providers do not count');
+  assert.strictEqual(await state(withOutput(new OpenCodeAdapter(), outputs.opencodeIn)), 'in');
+});

@@ -94,9 +94,18 @@ export class AgentSelector {
   }
 
   public async getStatuses(forceRecheck = false): Promise<AgentStatus[]> {
-    const { priority } = this.config.get();
+    const { priority, mode } = this.config.get();
     const entries = [...this.adapters.entries()];
-    const checks = await Promise.all(entries.map(([, a]) => a.isAvailable(forceRecheck)));
+    const checks = await Promise.all(
+      entries.map(async ([id, a]) => {
+        const c = await a.isAvailable(forceRecheck);
+        // Someone without a paid plan can't use the Gemini CLI with a Google-account sign-in any more.
+        if (id === 'gemini' && mode === 'free' && c.authType === 'google-account') {
+          return { ...c, available: false, detail: 'Signed in with a Google account, which free plans can no longer use here. Switch to a free API key: type gemini, run /auth, choose the API key option (key from aistudio.google.com/apikey).' };
+        }
+        return c;
+      })
+    );
 
     return entries
       .map(([id, adapter], i) => {
