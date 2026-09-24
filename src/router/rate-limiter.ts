@@ -61,9 +61,15 @@ export class RateLimiter {
     } catch {}
   }
 
-  public isRateLimit(message: string): boolean {
+  /**
+   * Some CLIs (Codex) echo the prompt into their error log. Lines that came from the prompt are
+   * ignored, or a request like "add rate limiting" would bench the agent on a fake rate limit.
+   */
+  public isRateLimit(message: string, prompt = ''): boolean {
     if (!message) return false;
-    return RATE_LIMIT_REGEXES.some((rx) => rx.test(message));
+    const promptLines = new Set(prompt.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0));
+    const own = message.split(/\r?\n/).filter((l) => !promptLines.has(l.trim())).join('\n');
+    return RATE_LIMIT_REGEXES.some((rx) => rx.test(own));
   }
 
   public isAgentInCooldown(agentId: AgentId): boolean {

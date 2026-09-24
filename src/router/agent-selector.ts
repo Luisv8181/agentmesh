@@ -14,6 +14,7 @@ import { GitCoordinator } from '../workspace/git-coordinator.js';
 import { snapshotFiles, diffSnapshots } from '../workspace/change-tracker.js';
 import { globalUsageMonitor } from './usage-monitor.js';
 import { globalTokenTracker } from './token-tracker.js';
+import { keyErrorLine, fixHint } from './error-hints.js';
 import {
   AgentId,
   AgentStatus,
@@ -109,7 +110,8 @@ export class AgentSelector {
           lastUsed: rl.lastUsed,
           lastError: rl.lastError,
           priority: idx === -1 ? null : idx,
-          subscription: SUBSCRIPTION_AGENTS.includes(id)
+          subscription: SUBSCRIPTION_AGENTS.includes(id),
+          hint: rl.consecutiveErrors > 0 && rl.lastError ? fixHint(id, adapter.name, rl.lastError) ?? undefined : undefined
         };
       })
       .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
@@ -208,7 +210,7 @@ export class AgentSelector {
       }
 
       const error = result.error || result.output || 'Unknown failure';
-      const reason: HandoffReason = this.rateLimiter.isRateLimit(error) ? 'rate_limit' : 'error';
+      const reason: HandoffReason = this.rateLimiter.isRateLimit(error, prompt) ? 'rate_limit' : 'error';
       if (reason === 'rate_limit') {
         this.rateLimiter.recordRateLimit(agentId, error);
       } else {
@@ -219,7 +221,10 @@ export class AgentSelector {
     }
 
     const lines: string[] = [];
-    if (previous) lines.push(`${previous.name} failed: ${previous.error.slice(0, 300)}`);
+    if (previous) {
+      const hint = fixHint(previous.agentId, previous.name, previous.error);
+      lines.push(`${previous.name} failed: ${keyErrorLine(previous.error)}${hint ? `\n  → ${hint}` : ''}`);
+    }
     lines.push(...skipped);
     const summary = lines.length
       ? `No agent could finish this.\n${lines.map((l) => `• ${l}`).join('\n')}`
@@ -284,8 +289,20 @@ export class AgentSelector {
       );
     }
 
+    parts.push(
+      `[Project folder]\n${this.workspaceRoot}\n` +
+        'Every file you read, create or edit is inside this folder. Use absolute paths when your tools require them.'
+    );
+
     if (permission === 'readonly') {
       parts.push('[Mode] Read-only: do not modify any files. Explain what you would change instead.');
+    } else {
+      // Headless edit modes auto-deny shell commands (nobody is there to approve them), and an agent that
+      // reaches for the shell first fails with no output.
+      parts.push(
+        '[Mode] You may create and edit files in this folder. Use your built-in file read/write/edit tools; ' +
+          'shell or terminal commands may be blocked in this mode, so do not rely on them.'
+      );
     }
 
     parts.push(
@@ -332,7 +349,8 @@ export class AgentSelector {
     const { priority } = this.config.get();
     let queue: AgentId[] = [];
     // Stick with the agent already working on this task, if the user still has it turned on.
-    if (current && priority.includes(current) && !this.rateLimiter.isAgentInCooldown(current)) {
+    // Never stick with Ollama: it's the chat-only fallback and can't edit files.
+    if (current && current !== 'ollama' && priority.includes(current) && !this.rateLimiter.isAgentInCooldown(current)) {
       queue.push(current);
     }
     for (const p of priority) {

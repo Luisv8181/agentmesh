@@ -38,7 +38,7 @@ A setup screen opens automatically.
 
 **Step 2: install at least one assistant.** Each one shows:
 
-- what it costs (some need a paid plan you may already have; **Google Gemini is free** with a Google account),
+- what it costs (some need a paid plan you may already have; **Google Antigravity** works with a regular Google account),
 - a command to copy, with a **Copy** button,
 - how to sign in.
 
@@ -46,7 +46,7 @@ To run a command:
 
 1. Press the **Windows key**, type **PowerShell**, press **Enter**.
 2. Right-click inside the blue window to paste the command, then press **Enter**.
-3. When it finishes, close PowerShell, open a new one, and follow the sign-in step (usually typing the assistant's name, like `gemini`, and signing in through your browser).
+3. When it finishes, close PowerShell, open a new one, and follow the sign-in step (usually typing the assistant's name, like `agy`, and signing in through your browser).
 4. Go back to AgentMesh and press **Check again**. It should now say **Ready**.
 
 **Stuck?** Click **Ask an AI to help** next to the assistant. It copies a message you can paste into ChatGPT, Claude or Gemini, and the AI walks you through it step by step.

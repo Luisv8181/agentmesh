@@ -17,6 +17,8 @@ export interface AgentStatus {
   priority: number | null;
   /** Paid subscription CLI (blocked in Safe Mode). */
   subscription: boolean;
+  /** What the user should do, when the last attempt failed for a fixable reason (expired login, outdated CLI…). */
+  hint?: string;
 }
 
 export type TaskStatus = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'failed';

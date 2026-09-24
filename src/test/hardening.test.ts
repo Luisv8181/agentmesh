@@ -65,10 +65,12 @@ test('Gemini adapter passes a prompt with shell metacharacters and newlines as o
 
 test('agy adapter uses flags agy actually supports, prompt last', async () => {
   installFakeCli('agy');
-  const res = await new AgyAdapter().execute(NASTY_PROMPT, { timeoutMs: 20_000, permission: 'readonly' });
+  const project = fs.mkdtempSync(path.join(os.tmpdir(), 'agentmesh-agy-project-'));
+  const res = await new AgyAdapter().execute(NASTY_PROMPT, { timeoutMs: 20_000, permission: 'readonly', cwd: project });
   assert.strictEqual(res.success, true, res.error);
   const got = JSON.parse(res.output);
-  assert.deepStrictEqual(got.args, ['--mode', 'plan', '-p', NASTY_PROMPT]);
+  // --add-dir: without it agy writes into its own scratch folder instead of the project.
+  assert.deepStrictEqual(got.args, ['--mode', 'plan', '--add-dir', project, '-p', NASTY_PROMPT]);
 });
 
 class ScriptedAdapter extends BaseAdapter {
@@ -299,4 +301,73 @@ test('Opening a folder in AgentMesh leaves no files behind until a task is saved
   await selector.getStatuses();
   new TaskStore(dir).listTasks();
   assert.deepStrictEqual(fs.readdirSync(dir), []);
+});
+
+test('Real CLI failures are reduced to the line that matters, with a plain-language fix', async () => {
+  const { keyErrorLine, fixHint } = await import('../router/error-hints.js');
+  // Captured from real runs of each CLI on 2026-09-23.
+  const claude = 'Failed to authenticate. API Error: 401 OAuth access token has expired. Re-authenticate to continue.';
+  const codex = [
+    '2026-09-24T01:47:42.536610Z ERROR codex_models_manager::cache: failed to load models cache: missing field `base_instructions` at line 139 column 5',
+    'OpenAI Codex v0.144.6', '--------', 'workdir: C:/relay-test', 'model: gpt-6-astra', 'provider: openai', '--------',
+    'warning: Model metadata for `gpt-6-astra` not found. Defaulting to fallback metadata.',
+    '2026-09-24T01:48:05.472608Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: "Bearer resource_metadata=https://mcp.context7.com/.well-known/oauth-protected-resource" })',
+    'ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The \'gpt-6-astra\' model requires a newer version of Codex. Please upgrade to the latest app or CLI and try again."}}'
+  ].join('\n');
+  const gemini = [
+    'Warning: True color (24-bit) support not detected.',
+    'Error authenticating: IneligibleTierError: This client is no longer supported for Gemini Code Assist for individuals. To continue using Gemini, please migrate to the Antigravity suite of products: https://antigravity.google',
+    '    at throwIneligibleOrProjectIdError (file:///C:/x/chunk.js:307474:11)',
+    'Ripgrep is not available. Falling back to GrepTool.'
+  ].join('\n');
+  const agy = 'jetski: no output produced — a tool required the "command" permission that headless mode cannot prompt for, so it was auto-denied.';
+
+  assert.match(keyErrorLine(codex), /requires a newer version of Codex/);
+  assert.match(keyErrorLine(gemini), /no longer supported/);
+  assert.match(fixHint('claude', 'Claude Code', claude) ?? '', /sign in again: open PowerShell, type claude/);
+  assert.match(fixHint('codex', 'OpenAI Codex', codex) ?? '', /out of date/);
+  assert.match(fixHint('gemini', 'Google Gemini', gemini) ?? '', /Antigravity/);
+  assert.match(fixHint('agy', 'Google Antigravity', agy) ?? '', /needs your approval/);
+  assert.strictEqual(fixHint('opencode', 'OpenCode', 'TypeError: cannot read x'), null);
+});
+
+test('Automatic mode does not stick with Ollama just because it ran the last step', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentmesh-sticky-'));
+  const selector = new AgentSelector(dir, false, freshConfig({ priority: ['agy', 'ollama'] }));
+  const agy = new ScriptedAdapter('agy', ok);
+  const ollama = new ScriptedAdapter('ollama', ok);
+  selector.register(agy);
+  selector.register(ollama);
+  const task = new TaskStore(dir).createTask('t', ['r']);
+  task.currentAgent = 'ollama';
+
+  const res = await selector.executeTask(task, 'edit a file');
+  assert.strictEqual(res.agent, 'agy');
+  assert.strictEqual(ollama.calls, 0);
+});
+
+test('OpenCode without a provider gets a /connect hint, and colour codes are stripped', async () => {
+  const { keyErrorLine, fixHint } = await import('../router/error-hints.js');
+  // Captured from a real OpenCode run on 2026-09-23.
+  const raw = "\u001b[91m\u001b[1mError: \u001b[0mGoogle Generative AI API key is missing. Pass it using the 'apiKey' parameter or the GOOGLE_GENERATIVE_AI_API_KEY environment variable.";
+  assert.ok(!keyErrorLine(raw).includes('\u001b'));
+  assert.match(fixHint('opencode', 'OpenCode', raw) ?? '', /type opencode, then type \/connect/);
+});
+
+test('A prompt that mentions "rate limit" and gets echoed back is not mistaken for a real rate limit', async () => {
+  const { RateLimiter } = await import('../router/rate-limiter.js');
+  const rl = new RateLimiter(fs.mkdtempSync(path.join(os.tmpdir(), 'agentmesh-rl-echo-')));
+  const prompt = 'Add rate limiting to my API.\nReturn 429 when a client makes too many requests.';
+  // Shape of a real Codex failure log: header, echoed prompt, then the actual error.
+  const codexLog = `OpenAI Codex v0.144.6\n--------\nuser\n${prompt}\nERROR: {"status":400,"message":"The model requires a newer version of Codex."}`;
+  assert.strictEqual(rl.isRateLimit(codexLog, prompt), false);
+  assert.strictEqual(rl.isRateLimit(`user\n${prompt}\nERROR: 429 Too Many Requests`, prompt), true);
+});
+
+test('Dashboard script parses (a syntax error blanks the whole page)', async () => {
+  const vm = await import('node:vm');
+  const html = fs.readFileSync(new URL('../../src/ui/dashboard.html', import.meta.url), 'utf8');
+  const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  assert.ok(scripts.length > 0);
+  for (const code of scripts) assert.doesNotThrow(() => new vm.Script(code));
 });

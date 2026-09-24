@@ -384,10 +384,10 @@
     codex: { name: 'OpenAI Codex', by: 'OpenAI', cost: 'Needs a ChatGPT Plus, Pro or Business plan.',
       install: WIN ? 'powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"' : 'npm install -g @openai/codex',
       signin: 'Type codex, press Enter and choose "Sign in with ChatGPT".', docs: 'https://github.com/openai/codex' },
-    gemini: { name: 'Google Gemini', by: 'Google', cost: 'Free with a Google account (with daily limits).',
+    gemini: { name: 'Google Gemini', by: 'Google', cost: 'Google no longer supports free personal accounts here and points them to Antigravity instead. Needs a Gemini API key or a paid Google plan.',
       install: 'npm install -g @google/gemini-cli',
       signin: 'Type gemini, press Enter and choose "Sign in with Google".', docs: 'https://github.com/google-gemini/gemini-cli' },
-    agy: { name: 'Google Antigravity', by: 'Google', cost: 'Sign in with a Google account.',
+    agy: { name: 'Google Antigravity', by: 'Google', cost: 'Sign in with your Google account. This is Google’s option for personal accounts.',
       install: WIN ? 'irm https://antigravity.google/cli/install.ps1 | iex' : null,
       signin: 'Type agy and press Enter. A browser opens: sign in.', docs: 'https://antigravity.google/docs/cli/install' },
     opencode: { name: 'OpenCode', by: 'SST', cost: 'Uses an AI provider account you connect. Some providers bill per use.',
@@ -441,6 +441,7 @@
     if (a.priority === null) return { cls: 'off', label: 'Turned off' };
     if (!a.available) return { cls: 'off', label: a.detail && a.id === 'ollama' && a.detail.startsWith('Model') ? 'Needs model' : 'Not set up' };
     if (d.safeMode && a.subscription) return { cls: '', label: 'Paused (free mode)' };
+    if (a.hint) return { cls: 'err', label: /sign in/i.test(a.hint) ? 'Needs sign-in' : /out of date/i.test(a.hint) ? 'Needs update' : 'Needs attention' };
     if (a.inCooldown && a.cooldownUntil) return { cls: 'warn', label: `Resting ${fmtLeft(a.cooldownUntil)}`, cooldown: true };
     return { cls: 'ok', label: 'Ready' };
   }
@@ -481,7 +482,7 @@
   function renderPills() {
     $('#pills').innerHTML = state.data.agents.map((a) => {
       const s = agentState(a);
-      return `<button class="pill" data-action="${s.cooldown ? 'agent-reset' : 'open-setup'}" data-agent="${a.id}" title="${esc(s.cooldown ? 'Hit its usage limit. Click to let it try again now.' : a.detail || a.version || '')}">
+      return `<button class="pill" data-action="${s.cooldown ? 'agent-reset' : 'open-setup'}" data-agent="${a.id}" title="${esc(a.hint || (s.cooldown ? 'Hit its usage limit. Click to let it try again now.' : a.detail || a.version || ''))}">
         <span class="dot ${s.cls}"></span>${esc(a.name)} <span class="state" data-cooldown="${s.cooldown ? a.cooldownUntil : ''}">${esc(s.label)}</span></button>`;
     }).join('');
   }
@@ -571,7 +572,9 @@
       </div>
       <div class="timeline">${handoffs}</div>
       ${!res.success && !res.cancelled ? `<div class="banner err" style="margin-top:12px;white-space:pre-wrap">${esc(res.error)}</div>${helpFor(res.error)}` : ''}
-      ${files.length ? `<div class="small muted" style="margin-top:12px">Files changed</div><div class="files">${files.map((f) => `<span class="file">${esc(f)}</span>`).join('')}</div>` : ''}
+      ${files.length
+        ? `<div class="small muted" style="margin-top:12px">Files changed</div><div class="files">${files.map((f) => `<span class="file">${esc(f)}</span>`).join('')}</div>`
+        : res.success ? `<div class="small muted" style="margin-top:12px">No files were changed.${res.agent === 'ollama' ? ' (Ollama can only suggest changes.)' : ''}</div>` : ''}
       ${res.output ? `<div class="output md">${md(res.output)}</div>` : ''}
     </div>`;
   }
@@ -640,11 +643,17 @@
     const agents = state.data.agents;
     const ready = agents.filter((a) => a.available);
     $('#setup-summary').innerHTML = agents.map((a) => `<span class="check"><span class="dot ${a.available ? 'ok' : 'off'}"></span>${esc(a.name)}</span>`).join('');
-    const order = ['claude', 'codex', 'gemini', 'agy', 'ollama', 'opencode'];
+    const order = ['claude', 'codex', 'agy', 'ollama', 'gemini', 'opencode'];
     const sorted = [...agents].sort((a, b) => (a.available - b.available) || order.indexOf(a.id) - order.indexOf(b.id));
-    $('#setup-agents').innerHTML = (ready.length ? '' : '<p class="small muted" style="margin:0 0 10px">Not sure where to start? <b>Google Gemini</b> is free with a Google account. If you already pay for Claude or ChatGPT, set that one up first.</p>') +
+    $('#setup-agents').innerHTML = (ready.length ? '' : '<p class="small muted" style="margin:0 0 10px">Not sure where to start? If you already pay for Claude or ChatGPT, set that one up first. Otherwise <b>Google Antigravity</b> works with a Google account.</p>') +
       sorted.map((a) => {
         const g = GUIDE[a.id];
+        if (a.available && a.hint) {
+          return `<div class="agent-setup"><div class="row"><span class="dot err"></span><b>${esc(g.name)}</b><span class="small muted">${esc(a.version || '')}</span><span class="spacer"></span>
+            <button class="btn sm" data-action="copy-ai" data-agent="${a.id}">Ask an AI to help</button></div>
+            <div class="banner warn" style="margin-top:10px">${esc(a.hint)}</div>
+            ${g.install ? `<div class="small muted" style="margin-top:8px">Install / update command:</div>${cmdBox(g.install)}` : ''}</div>`;
+        }
         if (a.available) {
           return `<div class="agent-setup"><div class="row"><span class="dot ok"></span><b>${esc(g.name)}</b><span class="small muted">${esc(a.version || '')}</span><span class="spacer"></span><span class="small" style="color:var(--ok)">Ready</span></div></div>`;
         }
