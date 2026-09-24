@@ -65,33 +65,35 @@ AgentMesh is organized around five core modules:
 Need to test agent behavior without risking your paid subscription quotas? AgentMesh includes a hard safety guard:
 
 ```bash
-# Run with local Ollama only (blocks Claude, Codex, agy, Gemini)
+# Run with local Ollama only (blocks Claude, Codex, agy, Gemini, OpenCode)
 agentmesh run --local-only "Generate a helper utility in src/utils.ts"
 
 # Or launch the Web Dashboard in Safe Mode
 agentmesh ui --local-only
 ```
 
-When Safe Mode is enabled, AgentMesh **strictly blocks** any execution of paid CLIs, routing 100% locally to Ollama (e.g. `llama3.2`, `codellama`, `qwen2.5`). Zero tokens are charged and zero subscription limits are consumed.
+When Safe Mode is enabled, AgentMesh **strictly blocks** every CLI that can cost money (including OpenCode, which can bill API credits), routing 100% locally to Ollama (e.g. `llama3.2`, `codellama`, `qwen2.5`). Zero tokens are charged and zero subscription limits are consumed. Ollama is chat-only, so AgentMesh gives it a read-only snapshot of the project (never `.env`, keys or credential files) and it answers with suggested code rather than editing files.
 
 ---
 
 ## 🖥️ Web UI Dashboard
 
-Launch the visual Fleet Command Center with live cooldown countdown meters and real-time SSE failover stream:
-
 ```bash
-agentmesh ui
-# Opens http://localhost:3333 automatically
+agentmesh            # same as: agentmesh ui  (opens http://127.0.0.1:3333)
+agentmesh ui --recent  # reopen the last project folder instead of the current directory
 ```
 
-Key UI Features:
-* **Live Ticking Cooldown Clocks**: Second-by-second countdown for cooling providers.
-* **Visual Recovery Meters**: Color-coded progress bars showing recovery percentage.
-* **Direct Subscription Telemetry**: Ingests real-time token counts, active models, and cache hits from Claude Code (`~/.claude/`) and OpenAI Codex (`~/.codex/`).
-* **Interactive Safe Mode Toggle**: One-click switch to lock out cloud subscriptions.
-* **Real-Time Telemetry Log**: Live feed of 429 limits, failovers, and Git commits.
-* **One-Click Cooldown Resets**: Clear recovery timers manually on demand.
+Built for people who don't live in a terminal:
+* **One flow**: pick a project folder, type what you want, watch the agent's output stream live, press **Stop** anytime. Handoffs appear inline ("Claude hit its usage limit, so Codex is taking over").
+* **See the result**: the agent's answer, plus **which files changed** (works with or without git).
+* **Tasks**: follow-up instructions stay on the same task and each agent is told what earlier steps did. Switch between tasks or mark them finished.
+* **Guided setup**: detects which CLIs are installed, shows the official install command with a copy button, how to sign in, and an "Ask an AI to help" prompt for each one. **Check again** picks up newly installed CLIs without a restart.
+* **Settings**: agent order (and on/off), whether agents may edit files, opt-in git checkpoints, Ollama model, today's Claude/Codex token usage.
+* Light and dark themes, works at phone width, respects reduced motion.
+
+**Security.** The dashboard only listens on `127.0.0.1`. Every API call needs a random per-launch token, cross-origin requests and foreign `Host` headers are rejected (no drive-by requests from websites, no DNS rebinding), and the page can't be framed.
+
+**For non-developers on Windows:** see [GETTING-STARTED.md](GETTING-STARTED.md). Double-click **Start AgentMesh** and it installs, builds and opens itself.
 
 ---
 
@@ -119,12 +121,12 @@ Output:
 ```text
 === AgentMesh: Agent Pool Status ===
 
-Claude Code CLI              [✔ INSTALLED] [READY]
-OpenAI Codex CLI             [✔ INSTALLED] [READY]
-Google Antigravity CLI (agy) [✔ INSTALLED] [READY]
-Google Gemini CLI            [✔ INSTALLED] [READY]
-OpenCode AI CLI              [✔ INSTALLED] [READY]
-Local Ollama Fallback        [✔ INSTALLED] [READY]
+Claude Code                  [✔ READY TO USE] [READY]
+OpenAI Codex                 [✔ READY TO USE] [READY]
+Google Antigravity (agy)     [✔ READY TO USE] [READY]
+Google Gemini                [✔ READY TO USE] [READY]
+OpenCode                     [✔ READY TO USE] [READY]
+Ollama (local, free)         [✖ Model "qwen2.5:7b" not downloaded. Run: ollama pull qwen2.5:7b] [UNAVAILABLE]
 
 === Active Task ===
 No active task. Create one with: agentmesh new "Task title"
@@ -145,10 +147,12 @@ agentmesh run "Implement the JWT signing and verification utility in src/jwt.ts"
 ```
 
 If your primary subscription (e.g., Claude Code) hits a rate limit or quota ceiling during execution:
-1. AgentMesh captures modified files in Git.
-2. Creates a checkpoint commit: `[agentmesh] handoff: claude -> codex`.
-3. Constructs a structured **Work Handoff Brief**.
-4. Automatically invokes **Codex** to resume right where Claude left off with zero lost work!
+1. AgentMesh records which files were modified.
+2. Constructs a structured **Work Handoff Brief**.
+3. Automatically invokes the next agent in your priority order (e.g. **Codex**) to resume right where Claude left off.
+4. Optionally (off by default, enable in Settings) creates a checkpoint commit: `[agentmesh] handoff: claude -> codex`. Only files git already tracks are committed; untracked files such as `.env` are never staged.
+
+Agents run with file-edit permission but not "skip all permissions" modes: Claude Code uses `--permission-mode acceptEdits`, Codex `-s workspace-write`, Gemini `--approval-mode auto_edit`, agy `--mode accept-edits`. Turn off "Let agents edit files" in Settings to switch them all to read-only/plan modes.
 
 ### 5. Review Task & Handoff History
 

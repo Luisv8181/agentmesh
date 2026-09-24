@@ -11,6 +11,12 @@ export interface AgentStatus {
   consecutiveErrors: number;
   lastUsed: number | null;
   lastError?: string;
+  /** Why the agent can't be used right now, in plain language. */
+  detail?: string;
+  /** Position in the user's priority order, or null if the user turned this agent off. */
+  priority: number | null;
+  /** Paid subscription CLI (blocked in Safe Mode). */
+  subscription: boolean;
 }
 
 export type TaskStatus = 'pending' | 'in_progress' | 'blocked' | 'completed' | 'failed';
@@ -44,8 +50,23 @@ export interface TaskState {
   handoffs: HandoffRecord[];
   workspaceRoot: string;
   gitBranch?: string;
+  runs?: RunRecord[];
   createdAt: number;
   updatedAt: number;
+}
+
+export interface RunRecord {
+  runId: string;
+  instruction: string;
+  agent?: AgentId;
+  success: boolean;
+  cancelled?: boolean;
+  output: string;
+  error?: string;
+  handoffs: { from: AgentId; to: AgentId; reason: HandoffReason }[];
+  filesChanged: string[];
+  startedAt: number;
+  durationMs: number;
 }
 
 export interface WorkExecutionResult {
@@ -53,6 +74,7 @@ export interface WorkExecutionResult {
   agent: AgentId;
   output: string;
   error?: string;
-  handoffTriggered?: boolean;
+  cancelled?: boolean;
+  handoffs: { from: AgentId; to: AgentId; reason: HandoffReason }[];
   durationMs: number;
 }

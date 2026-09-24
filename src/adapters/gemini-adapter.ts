@@ -1,12 +1,13 @@
-import { BaseAdapter, AdapterExecutionResult } from './base-adapter.js';
+import { BaseAdapter, AdapterExecutionResult, ExecuteOptions } from './base-adapter.js';
 import { AgentId } from '../types.js';
 
 export class GeminiAdapter extends BaseAdapter {
   readonly id: AgentId = 'gemini';
-  readonly name = 'Google Gemini CLI';
+  readonly name = 'Google Gemini';
   readonly command = 'gemini';
 
-  async execute(prompt: string, timeoutMs = 180_000, cwd?: string): Promise<AdapterExecutionResult> {
-    return this.runProcess(['--skip-trust', '-p', prompt], { timeoutMs, cwd });
+  async execute(prompt: string, opts: ExecuteOptions = {}): Promise<AdapterExecutionResult> {
+    const mode = opts.permission === 'readonly' ? 'plan' : 'auto_edit';
+    return this.runProcess(['--skip-trust', '--approval-mode', mode, '-p', prompt], opts);
   }
 }

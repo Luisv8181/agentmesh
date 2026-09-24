@@ -9,7 +9,9 @@ import { OllamaAdapter } from '../adapters/ollama-adapter.js';
 import { RateLimiter } from './rate-limiter.js';
 import { TaskStore } from '../state/task-store.js';
 import { HandoffProtocol } from '../state/handoff-protocol.js';
+import { ConfigStore, agentMeshHome } from '../state/config-store.js';
 import { GitCoordinator } from '../workspace/git-coordinator.js';
+import { snapshotFiles, diffSnapshots } from '../workspace/change-tracker.js';
 import { globalUsageMonitor } from './usage-monitor.js';
 import { globalTokenTracker } from './token-tracker.js';
 import {
@@ -17,35 +19,49 @@ import {
   AgentStatus,
   HandoffReason,
   HandoffRecord,
+  RunRecord,
   TaskState,
   WorkExecutionResult
 } from '../types.js';
 
-const SUBSCRIPTION_AGENTS: AgentId[] = ['claude', 'codex', 'agy', 'gemini'];
+/** Everything except local Ollama can cost money, so Safe Mode blocks all of them. */
+export const SUBSCRIPTION_AGENTS: AgentId[] = ['claude', 'codex', 'agy', 'gemini', 'opencode'];
+
+const MAX_STORED_OUTPUT = 50_000;
+const MAX_STORED_RUNS = 50;
+
+export interface RunHooks {
+  runId?: string;
+  signal?: AbortSignal;
+  onAgentStart?: (agentId: AgentId) => void;
+  onOutput?: (agentId: AgentId, chunk: string) => void;
+  onHandoff?: (from: AgentId, to: AgentId, reason: HandoffReason, error: string) => void;
+}
 
 export class AgentSelector {
   private adapters: Map<AgentId, BaseAdapter> = new Map();
   private rateLimiter: RateLimiter;
   private taskStore: TaskStore;
   private gitCoordinator: GitCoordinator;
-  private defaultPriority: AgentId[];
   private safeMode = false;
+  readonly workspaceRoot: string;
+  readonly config: ConfigStore;
 
-  constructor(workspaceRoot = process.cwd(), safeMode = false) {
-    this.rateLimiter = new RateLimiter(workspaceRoot);
+  constructor(workspaceRoot = process.cwd(), safeMode = false, config = new ConfigStore()) {
+    this.workspaceRoot = workspaceRoot;
+    this.config = config;
+    this.rateLimiter = new RateLimiter(agentMeshHome());
     this.taskStore = new TaskStore(workspaceRoot);
     this.gitCoordinator = new GitCoordinator(workspaceRoot);
     this.safeMode = safeMode || process.env.AGENTMESH_SAFE_MODE === 'true';
 
-    // Register built-in adapters
     this.register(new ClaudeAdapter());
     this.register(new CodexAdapter());
     this.register(new AgyAdapter());
     this.register(new GeminiAdapter());
     this.register(new OpenCodeAdapter());
-    this.register(new OllamaAdapter());
+    this.register(new OllamaAdapter(undefined, config.get().ollamaModel));
 
-    this.defaultPriority = ['claude', 'codex', 'agy', 'gemini', 'opencode', 'ollama'];
     globalUsageMonitor.setSafeMode(this.safeMode);
   }
 
@@ -62,27 +78,41 @@ export class AgentSelector {
     this.adapters.set(adapter.id, adapter);
   }
 
-  public getStatuses(): AgentStatus[] {
-    const list: AgentStatus[] = [];
-    for (const [id, adapter] of this.adapters.entries()) {
-      const avail = adapter.isAvailable();
-      const rlState = this.rateLimiter.getState(id);
-      const inCooldown = this.rateLimiter.isAgentInCooldown(id);
-
-      list.push({
-        id,
-        name: adapter.name,
-        command: adapter.command,
-        available: avail.available,
-        version: avail.version,
-        inCooldown,
-        cooldownUntil: inCooldown ? rlState.cooldownUntil : null,
-        consecutiveErrors: rlState.consecutiveErrors,
-        lastUsed: rlState.lastUsed,
-        lastError: rlState.lastError
-      });
+  /** Re-applies settings that adapters cache (e.g. the Ollama model) after the config changes. */
+  public reloadConfig(): void {
+    const ollama = this.adapters.get('ollama');
+    if (ollama instanceof OllamaAdapter) {
+      ollama.model = this.config.get().ollamaModel;
     }
-    return list;
+  }
+
+  public async getStatuses(forceRecheck = false): Promise<AgentStatus[]> {
+    const { priority } = this.config.get();
+    const entries = [...this.adapters.entries()];
+    const checks = await Promise.all(entries.map(([, a]) => a.isAvailable(forceRecheck)));
+
+    return entries
+      .map(([id, adapter], i) => {
+        const rl = this.rateLimiter.getState(id);
+        const inCooldown = this.rateLimiter.isAgentInCooldown(id);
+        const idx = priority.indexOf(id);
+        return {
+          id,
+          name: adapter.name,
+          command: adapter.command,
+          available: checks[i].available,
+          version: checks[i].version,
+          detail: checks[i].detail,
+          inCooldown,
+          cooldownUntil: inCooldown ? rl.cooldownUntil : null,
+          consecutiveErrors: rl.consecutiveErrors,
+          lastUsed: rl.lastUsed,
+          lastError: rl.lastError,
+          priority: idx === -1 ? null : idx,
+          subscription: SUBSCRIPTION_AGENTS.includes(id)
+        };
+      })
+      .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
   }
 
   public resetCooldowns(): void {
@@ -94,14 +124,14 @@ export class AgentSelector {
   }
 
   /**
-   * Run a task across the mesh.
-   * If an agent fails or is rate-limited, AgentMesh snapshots git changes,
-   * constructs a work handoff brief, and immediately hands off to the next agent.
+   * Runs one instruction on a task. If the agent is rate-limited or fails, the next
+   * agent in the user's priority order picks up with a brief of the work so far.
    */
   public async executeTask(
     task: TaskState,
     instruction: string,
-    forcedAgent?: AgentId
+    forcedAgent?: AgentId,
+    hooks: RunHooks = {}
   ): Promise<WorkExecutionResult> {
     const start = Date.now();
 
@@ -111,112 +141,184 @@ export class AgentSelector {
       );
     }
 
-    const candidateQueue = this.resolveQueue(forcedAgent, task.currentAgent);
+    const { autoCommit, permission } = this.config.get();
+    const queue = this.resolveQueue(forcedAgent, task.currentAgent);
+    const before = snapshotFiles(this.workspaceRoot);
+    const handoffs: WorkExecutionResult['handoffs'] = [];
+    const skipped: string[] = [];
+    let previous: { agentId: AgentId; name: string; reason: HandoffReason; error: string } | null = null;
+    let last: { agentId: AgentId; output: string; error: string } | null = null;
 
-    let activeAgentIndex = 0;
+    const finish = (result: Omit<WorkExecutionResult, 'durationMs' | 'handoffs'>): WorkExecutionResult => {
+      const full: WorkExecutionResult = { ...result, handoffs, durationMs: Date.now() - start };
+      this.recordRun(task, instruction, full, start, diffSnapshots(before, snapshotFiles(this.workspaceRoot)), hooks.runId);
+      return full;
+    };
 
-    while (activeAgentIndex < candidateQueue.length) {
-      const agentId = candidateQueue[activeAgentIndex];
+    for (const agentId of queue) {
       const adapter = this.adapters.get(agentId);
-
-      if (!adapter) {
-        activeAgentIndex++;
-        continue;
-      }
+      if (!adapter) continue;
 
       if (this.rateLimiter.isAgentInCooldown(agentId)) {
-        activeAgentIndex++;
+        const secs = this.rateLimiter.getCooldownRemainingSec(agentId);
+        skipped.push(`${adapter.name}: resting after a limit (${formatWait(secs)} left)`);
         continue;
       }
 
-      const check = adapter.isAvailable();
+      const check = await adapter.isAvailable();
       if (!check.available) {
-        activeAgentIndex++;
+        skipped.push(`${adapter.name}: ${check.detail || 'not available'}`);
         continue;
       }
 
-      // Record start in telemetry
+      if (previous) {
+        const handoff = this.recordHandoff(task, previous, agentId, autoCommit);
+        handoffs.push({ from: handoff.fromAgent, to: handoff.toAgent, reason: handoff.reason });
+        hooks.onHandoff?.(previous.agentId, agentId, previous.reason, previous.error);
+      }
+
+      hooks.onAgentStart?.(agentId);
       globalUsageMonitor.recordRequestStart(agentId, instruction);
 
-      // Prepare work brief for this agent
-      let promptToAgent: string;
-      if (task.handoffs.length > 0) {
-        const lastHandoff = task.handoffs[task.handoffs.length - 1];
-        promptToAgent = HandoffProtocol.buildHandoffBrief(task, lastHandoff) + `\n\n[Current Directive]\n${instruction}`;
-      } else {
-        promptToAgent = `[AgentMesh Directive - Initial Run]\nTask: ${task.title}\nRequirements:\n` +
-          task.requirements.map((r, i) => `  ${i + 1}. ${r}`).join('\n') +
-          `\n\nInstruction:\n${instruction}`;
+      let prompt = this.buildPrompt(task, instruction, permission);
+      prompt = `${globalTokenTracker.buildTokenBudgetDirective(agentId, prompt)}\n${prompt}`;
+
+      const result = await adapter.execute(prompt, {
+        cwd: this.workspaceRoot,
+        permission,
+        signal: hooks.signal,
+        onOutput: hooks.onOutput ? (chunk) => hooks.onOutput!(agentId, chunk) : undefined
+      });
+
+      globalTokenTracker.recordUsage(
+        agentId,
+        globalTokenTracker.estimateTokens(prompt) + globalTokenTracker.estimateTokens(result.output)
+      );
+
+      if (result.cancelled) {
+        return finish({ success: false, cancelled: true, agent: agentId, output: result.output, error: 'Stopped by user' });
       }
-
-      // Prepend self-monitoring token budget directive
-      const budgetHeader = globalTokenTracker.buildTokenBudgetDirective(agentId, promptToAgent);
-      promptToAgent = `${budgetHeader}\n${promptToAgent}`;
-
-      const execStart = Date.now();
-      const result = await adapter.execute(promptToAgent);
-      const durationMs = Date.now() - execStart;
-
-      // Track estimated tokens
-      const estPromptTokens = globalTokenTracker.estimateTokens(promptToAgent);
-      const estCompletionTokens = globalTokenTracker.estimateTokens(result.output);
-      globalTokenTracker.recordUsage(agentId, estPromptTokens + estCompletionTokens);
 
       if (result.success && result.output.trim().length > 0) {
-        // Success!
         this.rateLimiter.recordSuccess(agentId);
-        globalUsageMonitor.recordRequestSuccess(agentId, durationMs);
+        globalUsageMonitor.recordRequestSuccess(agentId, result.durationMs);
         task.currentAgent = agentId;
         task.status = 'in_progress';
-        this.taskStore.saveTask(task);
-
-        return {
-          success: true,
-          agent: agentId,
-          output: result.output.trim(),
-          durationMs: Date.now() - start
-        };
+        return finish({ success: true, agent: agentId, output: result.output.trim() });
       }
 
-      // Agent hit an issue or rate limit:
-      const errorMsg = result.error || result.output || 'Unknown failure';
-      const isRateLimit = this.rateLimiter.isRateLimit(errorMsg);
-      const reason: HandoffReason = isRateLimit ? 'rate_limit' : 'error';
-
-      if (isRateLimit) {
-        this.rateLimiter.recordRateLimit(agentId, errorMsg);
+      const error = result.error || result.output || 'Unknown failure';
+      const reason: HandoffReason = this.rateLimiter.isRateLimit(error) ? 'rate_limit' : 'error';
+      if (reason === 'rate_limit') {
+        this.rateLimiter.recordRateLimit(agentId, error);
       } else {
-        this.rateLimiter.recordGenericError(agentId, errorMsg);
+        this.rateLimiter.recordGenericError(agentId, error);
       }
-
-      // Snapshot workspace changes and create checkpoint commit
-      const gitSnapshot = this.gitCoordinator.getSnapshot();
-      this.gitCoordinator.commitCheckpoint(task.taskId, agentId, candidateQueue[activeAgentIndex + 1] || 'ollama');
-
-      // Find next candidate agent
-      activeAgentIndex++;
-      const nextAgent = candidateQueue[activeAgentIndex];
-
-      if (nextAgent) {
-        globalUsageMonitor.recordHandoff(agentId, nextAgent, reason, task.taskId);
-
-        const handoffRecord: HandoffRecord = {
-          handoffId: `handoff-${uuidv4().slice(0, 8)}`,
-          fromAgent: agentId,
-          toAgent: nextAgent,
-          reason,
-          summary: `${adapter.name} encountered ${reason}: ${errorMsg.slice(0, 100)}`,
-          workDone: [`Attempted step with ${adapter.name}`],
-          nextSteps: [`Resume implementation and address remaining requirements`],
-          filesModified: gitSnapshot.modifiedFiles,
-          timestamp: Date.now()
-        };
-
-        this.taskStore.recordHandoff(task, handoffRecord);
-      }
+      previous = { agentId, name: adapter.name, reason, error };
+      last = { agentId, output: result.output, error };
     }
 
-    throw new Error(`All available agents in AgentMesh exhausted for task '${task.taskId}'.`);
+    const lines: string[] = [];
+    if (previous) lines.push(`${previous.name} failed: ${previous.error.slice(0, 300)}`);
+    lines.push(...skipped);
+    const summary = lines.length
+      ? `No agent could finish this.\n${lines.map((l) => `• ${l}`).join('\n')}`
+      : 'No agents are turned on. Open Settings and turn at least one on.';
+
+    return finish({
+      success: false,
+      agent: last?.agentId ?? queue[0] ?? 'ollama',
+      output: last?.output ?? '',
+      error: summary
+    });
+  }
+
+  private recordHandoff(
+    task: TaskState,
+    from: { agentId: AgentId; name: string; reason: HandoffReason; error: string },
+    to: AgentId,
+    autoCommit: boolean
+  ): HandoffRecord {
+    const snapshot = this.gitCoordinator.getSnapshot();
+    if (autoCommit) {
+      this.gitCoordinator.commitCheckpoint(task.taskId, from.agentId, to);
+    }
+    globalUsageMonitor.recordHandoff(from.agentId, to, from.reason, task.taskId);
+
+    const record: HandoffRecord = {
+      handoffId: `handoff-${uuidv4().slice(0, 8)}`,
+      fromAgent: from.agentId,
+      toAgent: to,
+      reason: from.reason,
+      summary: `${from.name} stopped (${from.reason === 'rate_limit' ? 'usage limit' : 'error'}): ${from.error.slice(0, 160)}`,
+      workDone: [`${from.name} worked on the current instruction before stopping`],
+      nextSteps: ['Check the current state of the files, then finish the current instruction'],
+      filesModified: [...snapshot.modifiedFiles, ...snapshot.untrackedFiles],
+      timestamp: Date.now()
+    };
+    this.taskStore.recordHandoff(task, record);
+    return record;
+  }
+
+  private buildPrompt(task: TaskState, instruction: string, permission: 'edit' | 'readonly'): string {
+    const parts: string[] = [];
+    if (task.handoffs.length > 0) {
+      parts.push(HandoffProtocol.buildHandoffBrief(task, task.handoffs[task.handoffs.length - 1]));
+    } else {
+      parts.push(
+        `[AgentMesh Task]\nTask: ${task.title}\nOverall goal (set when the task was created):\n` +
+          task.requirements.map((r, i) => `  ${i + 1}. ${r}`).join('\n')
+      );
+    }
+
+    const recent = (task.runs || []).filter((r) => r.success).slice(-3);
+    if (recent.length > 0) {
+      parts.push(
+        '[Earlier steps on this task]\n' +
+          recent
+            .map((r) => {
+              const files = r.filesChanged.length ? ` Files changed: ${r.filesChanged.slice(0, 10).join(', ')}.` : '';
+              return `- "${r.instruction.slice(0, 200)}" (done by ${r.agent}).${files} Result: ${r.output.slice(0, 300).replace(/\s+/g, ' ')}`;
+            })
+            .join('\n')
+      );
+    }
+
+    if (permission === 'readonly') {
+      parts.push('[Mode] Read-only: do not modify any files. Explain what you would change instead.');
+    }
+
+    parts.push(
+      `[Current Instruction: do this now]\n${instruction}\n\n` +
+        'This is the latest request from the user. If it differs from the overall goal or earlier steps, follow this one.'
+    );
+    return parts.join('\n\n');
+  }
+
+  private recordRun(
+    task: TaskState,
+    instruction: string,
+    result: WorkExecutionResult,
+    startedAt: number,
+    filesChanged: string[],
+    runId?: string
+  ): void {
+    const record: RunRecord = {
+      runId: runId ?? `run-${uuidv4().slice(0, 8)}`,
+      instruction,
+      agent: result.agent,
+      success: result.success,
+      cancelled: result.cancelled,
+      output: result.output.slice(0, MAX_STORED_OUTPUT),
+      error: result.error,
+      handoffs: result.handoffs,
+      filesChanged,
+      startedAt,
+      durationMs: result.durationMs
+    };
+    task.runs = [...(task.runs || []), record].slice(-MAX_STORED_RUNS);
+    task.filesChanged = [...new Set([...task.filesChanged, ...filesChanged.filter((f) => !f.endsWith('(deleted)'))])];
+    this.taskStore.saveTask(task);
   }
 
   private resolveQueue(forced?: AgentId, current?: AgentId): AgentId[] {
@@ -227,25 +329,25 @@ export class AgentSelector {
       return [forced];
     }
 
+    const { priority } = this.config.get();
     let queue: AgentId[] = [];
-    if (current && !this.rateLimiter.isAgentInCooldown(current)) {
+    // Stick with the agent already working on this task, if the user still has it turned on.
+    if (current && priority.includes(current) && !this.rateLimiter.isAgentInCooldown(current)) {
       queue.push(current);
     }
-
-    for (const p of this.defaultPriority) {
-      if (!queue.includes(p)) {
-        queue.push(p);
-      }
+    for (const p of priority) {
+      if (!queue.includes(p)) queue.push(p);
     }
 
     if (this.safeMode) {
-      queue = queue.filter((a) => !SUBSCRIPTION_AGENTS.includes(a));
-      if (queue.length === 0) {
-        queue.push('ollama');
-      }
+      queue = ['ollama'];
     }
-
     return queue;
   }
 }
 
+function formatWait(secs: number): string {
+  if (secs < 60) return `${secs}s`;
+  if (secs < 3600) return `${Math.ceil(secs / 60)} min`;
+  return `${Math.floor(secs / 3600)}h ${Math.ceil((secs % 3600) / 60)}m`;
+}

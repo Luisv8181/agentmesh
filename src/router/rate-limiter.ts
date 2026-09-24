@@ -32,17 +32,16 @@ const RATE_LIMIT_REGEXES = [
 ];
 
 import { globalUsageMonitor } from './usage-monitor.js';
+import { agentMeshHome } from '../state/config-store.js';
 
 export class RateLimiter {
   private filePath: string;
   private state: Record<string, RateLimitState> = {};
 
-  constructor(workspaceRoot = process.cwd()) {
-    const dir = path.join(workspaceRoot, '.agentmesh');
-    if (!fs.existsSync(dir)) {
-      try { fs.mkdirSync(dir, { recursive: true }); } catch {}
-    }
-    this.filePath = path.join(dir, 'rate-limits.json');
+  /** stateDir is user-level (~/.agentmesh): limits belong to the account, not the project. */
+  constructor(stateDir = agentMeshHome()) {
+    try { fs.mkdirSync(stateDir, { recursive: true }); } catch {}
+    this.filePath = path.join(stateDir, 'rate-limits.json');
     this.load();
   }
 

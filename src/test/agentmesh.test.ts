@@ -10,6 +10,8 @@ import { AgentSelector } from '../router/agent-selector.js';
 import { BaseAdapter, AdapterExecutionResult } from '../adapters/base-adapter.js';
 import { AgentId } from '../types.js';
 
+process.env.AGENTMESH_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'agentmesh-home-'));
+
 class MockAgentAdapter extends BaseAdapter {
   id: AgentId;
   name: string;
@@ -24,7 +26,7 @@ class MockAgentAdapter extends BaseAdapter {
     this.command = `mock-${id}`;
   }
 
-  override isAvailable() {
+  override async isAvailable() {
     return { available: true, version: '1.0.0-mock' };
   }
 

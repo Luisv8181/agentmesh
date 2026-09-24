@@ -1,553 +1,932 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AgentMesh — Fleet Command Center</title>
-  <style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="agentmesh-token" content="__AGENTMESH_TOKEN__">
+<title>AgentMesh</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%232563eb'/><circle cx='10' cy='11' r='3' fill='white'/><circle cx='22' cy='11' r='3' fill='white'/><circle cx='16' cy='22' r='3' fill='white'/><path d='M10 11L22 11L16 22Z' stroke='white' stroke-width='1.5' fill='none'/></svg>">
+<style>
+  :root {
+    --bg: #f7f7f5; --surface: #ffffff; --surface-2: #f2f2ef; --text: #18181b; --muted: #71717a;
+    --border: #e7e5e4; --accent: #2563eb; --accent-text: #ffffff; --accent-soft: #eff4ff;
+    --ok: #16a34a; --ok-soft: #ecfdf3; --warn: #b45309; --warn-soft: #fff7e6; --err: #dc2626; --err-soft: #fef2f2;
+    --code-bg: #f4f4f2; --shadow: 0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+    --radius: 12px;
+    --mono: ui-monospace, "Cascadia Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #090d16;
-      --card-bg: #101726;
-      --card-border: #1e293b;
-      --accent-cyan: #00f3ff;
-      --accent-green: #10b981;
-      --accent-amber: #f59e0b;
-      --accent-rose: #f43f5e;
-      --accent-purple: #a855f7;
-      --text: #f1f5f9;
-      --text-muted: #94a3b8;
+      --bg: #0f0f10; --surface: #18181b; --surface-2: #1f1f23; --text: #f4f4f5; --muted: #a1a1aa;
+      --border: #2a2a2f; --accent: #60a5fa; --accent-text: #0b1220; --accent-soft: #172033;
+      --ok: #4ade80; --ok-soft: #10251a; --warn: #fbbf24; --warn-soft: #2a2110; --err: #f87171; --err-soft: #2b1414;
+      --code-bg: #141417; --shadow: none;
+      color-scheme: dark;
     }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+  [hidden] { display: none !important; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
-    body { background-color: var(--bg); color: var(--text); padding: 24px; min-height: 100vh; }
-    
-    header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 20px; border-bottom: 1px solid var(--card-border); margin-bottom: 24px; }
-    .brand { display: flex; align-items: center; gap: 12px; }
-    .brand h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; background: linear-gradient(90deg, #00f3ff, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .status-pill { font-size: 11px; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; display: inline-flex; align-items: center; gap: 6px; }
-    .pill-green { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.3); }
-    .pill-amber { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.3); }
-    .pill-purple { background: rgba(168, 85, 247, 0.15); color: var(--accent-purple); border: 1px solid rgba(168, 85, 247, 0.3); }
+  /* Shell */
+  .app { display: grid; grid-template-columns: 272px minmax(0, 1fr); min-height: 100vh; }
+  .sidebar { border-right: 1px solid var(--border); padding: 18px 14px; display: flex; flex-direction: column; gap: 20px; position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--bg); }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 15px; padding: 0 6px; }
+  .brand svg { flex: none; }
+  .group-label { font-size: 12px; color: var(--muted); padding: 0 8px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; }
+  .project { border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 10px 12px; }
+  .project-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .project-path { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+  .project-actions { display: flex; gap: 6px; margin-top: 8px; }
+  .task-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
+  .task-item { width: 100%; text-align: left; background: none; border: 0; border-radius: 8px; padding: 7px 8px 7px 22px; cursor: pointer; position: relative; color: var(--text); display: block; }
+  .task-item:hover { background: var(--surface-2); }
+  .task-item[aria-current="true"] { background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); font-weight: 600; }
+  .task-item[aria-current="true"]::before { content: ""; position: absolute; left: 9px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--accent); }
+  .task-item .t-title { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .task-item .t-meta { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+  .task-item.done .t-title { color: var(--muted); }
+  details.finished > summary { list-style: none; cursor: pointer; }
+  details.finished > summary::-webkit-details-marker { display: none; }
+  .sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; }
+  .nav-btn { display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 7px 8px; border-radius: 8px; cursor: pointer; color: var(--muted); width: 100%; text-align: left; }
+  .nav-btn:hover { background: var(--surface-2); color: var(--text); }
 
-    .header-actions { display: flex; align-items: center; gap: 14px; }
-    .safe-toggle { background: #182235; border: 1px solid var(--card-border); color: var(--text); padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; }
-    .safe-toggle.active { background: rgba(168, 85, 247, 0.2); border-color: var(--accent-purple); color: #e9d5ff; box-shadow: 0 0 15px rgba(168, 85, 247, 0.25); }
+  .main { min-width: 0; }
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 14px 28px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); z-index: 5; }
+  .btn.menu-btn { display: none; }
+  .pills { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; min-width: 0; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 4px 10px 4px 8px; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+  .pill:hover { border-color: color-mix(in srgb, var(--muted) 50%, var(--border)); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.err { background: var(--err); }
+  .dot.busy { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+  .dot.off { background: transparent; border: 1.5px dashed var(--muted); }
+  .pill .state { color: var(--muted); }
+  .switch { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; white-space: nowrap; user-select: none; }
+  .switch input { appearance: none; width: 34px; height: 20px; border-radius: 999px; background: var(--border); position: relative; cursor: pointer; transition: background .15s; margin: 0; }
+  .switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+  .switch input:checked { background: var(--ok); }
+  .switch input:checked::after { transform: translateX(14px); }
 
-    /* Task Dispatch Bar */
-    .dispatch-bar { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 14px 18px; margin-bottom: 28px; display: flex; gap: 12px; align-items: center; }
-    .dispatch-input { flex: 1; background: #0b101c; border: 1px solid #1e293b; color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 14px; outline: none; transition: border 0.2s; }
-    .dispatch-input:focus { border-color: var(--accent-cyan); }
-    .dispatch-select { background: #0b101c; border: 1px solid #1e293b; color: var(--text); padding: 10px 14px; border-radius: 8px; font-size: 13px; outline: none; }
-    .btn-primary { background: linear-gradient(135deg, #00f3ff, #0284c7); color: #020617; border: none; font-weight: 700; font-size: 13px; padding: 10px 20px; border-radius: 8px; cursor: pointer; transition: opacity 0.2s; }
-    .btn-primary:hover { opacity: 0.9; }
+  .content { max-width: 860px; margin: 0 auto; padding: 28px 28px 80px; display: flex; flex-direction: column; gap: 18px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .card-pad { padding: 18px 20px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+  h2 { font-size: 15px; font-weight: 600; margin: 0; }
+  .muted { color: var(--muted); }
+  .small { font-size: 12.5px; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .spacer { flex: 1; }
+  .banner { border-radius: 10px; padding: 10px 14px; font-size: 13.5px; display: flex; gap: 10px; align-items: flex-start; }
+  .banner.info { background: var(--accent-soft); }
+  .banner.warn { background: var(--warn-soft); }
+  .banner.err { background: var(--err-soft); }
 
-    /* Grid of Agent Cards */
-    .section-title { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 14px; font-weight: 600; }
-    .agent-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 18px; margin-bottom: 32px; }
-    
-    .agent-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 18px; position: relative; overflow: hidden; transition: all 0.2s; display: flex; flex-direction: column; justify-content: space-between; }
-    .agent-card:hover { border-color: #334155; transform: translateY(-2px); }
-    .agent-card.cooling { border-color: rgba(245, 158, 11, 0.4); box-shadow: 0 0 20px rgba(245, 158, 11, 0.1); }
-    .agent-card.blocked-safe { opacity: 0.65; border-color: rgba(168, 85, 247, 0.3); }
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 6px 14px; cursor: pointer; font-size: 13px; font-weight: 500; transition: background .15s, border-color .15s, opacity .15s; white-space: nowrap; text-decoration: none; color: var(--text); }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .btn.primary:hover { opacity: .88; }
+  .btn.danger { color: var(--err); }
+  .btn.sm { padding: 3px 10px; font-size: 12px; }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn.ghost:hover { background: var(--surface-2); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .kbd { font-family: var(--mono); font-size: 11px; opacity: .7; }
 
-    .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
-    .card-title { font-size: 16px; font-weight: 600; color: #fff; margin-bottom: 4px; }
-    .card-sub { font-size: 11px; font-family: monospace; color: var(--text-muted); }
-    
-    /* Gauge / Meter Visual */
-    .meter-container { display: flex; align-items: center; gap: 16px; margin: 12px 0 16px 0; background: #090e18; border-radius: 10px; padding: 12px; border: 1px solid #192336; }
-    .timer-readout { flex: 1; }
-    .timer-label { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
-    .timer-val { font-size: 20px; font-family: monospace; font-weight: 700; color: #fff; margin-top: 2px; }
-    .timer-val.cooling-clock { color: var(--accent-amber); animation: pulse 1s infinite alternate; }
+  /* Composer */
+  .composer textarea { width: 100%; min-height: 96px; resize: vertical; border: 0; background: transparent; outline: none; font-size: 15px; line-height: 1.55; padding: 0; }
+  .composer textarea::placeholder { color: var(--muted); }
+  .composer-foot { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--border); padding: 10px 14px 10px 20px; flex-wrap: wrap; }
+  select.plain { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 5px 10px; font-size: 13px; cursor: pointer; }
+  .examples { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .chip { border: 1px dashed var(--border); background: none; border-radius: 999px; padding: 3px 10px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+  .chip:hover { color: var(--text); border-style: solid; }
 
-    .progress-bar-bg { width: 100%; height: 6px; background: #1e293b; border-radius: 999px; overflow: hidden; margin-top: 6px; }
-    .progress-bar-fill { height: 100%; background: var(--accent-green); transition: width 0.5s; }
-    .progress-bar-fill.amber { background: var(--accent-amber); }
+  /* Run card */
+  .run-head { display: flex; gap: 14px; align-items: flex-start; }
+  .run-icon { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; flex: none; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+  .run-icon.ok { background: var(--ok-soft); color: var(--ok); }
+  .run-icon.err { background: var(--err-soft); color: var(--err); }
+  .run-icon.warn { background: var(--warn-soft); color: var(--warn); }
+  .progress { height: 4px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin: 14px 0 4px; }
+  .progress > span { display: block; height: 100%; width: 35%; border-radius: 999px; background: var(--accent); animation: slide 1.4s ease-in-out infinite; }
+  .timeline { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+  .handoff { font-size: 13px; background: var(--warn-soft); border-radius: 8px; padding: 8px 12px; }
+  .output { font-size: 13.5px; line-height: 1.6; margin-top: 12px; max-height: 480px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--code-bg); overflow-wrap: anywhere; }
+  .output.live { font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; }
+  .output:empty::before { content: "Waiting for the agent's first words…"; color: var(--muted); font-family: inherit; }
+  .md p { margin: 0 0 .7em; } .md p:last-child { margin-bottom: 0; }
+  .md h3, .md h4 { font-size: 14px; margin: 1em 0 .4em; }
+  .md ul, .md ol { margin: 0 0 .7em; padding-left: 1.3em; }
+  .md code { font-family: var(--mono); font-size: 12.5px; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+  .md pre { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; overflow: auto; margin: 0 0 .7em; }
+  .md pre code { background: none; padding: 0; }
+  .files { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .file { font-family: var(--mono); font-size: 12px; background: var(--surface-2); border-radius: 6px; padding: 2px 8px; }
 
-    /* Stats Grid */
-    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; border-top: 1px solid #1a2232; padding-top: 12px; margin-top: 8px; }
-    .stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
-    .stat-val { font-size: 13px; font-weight: 700; font-family: monospace; margin-top: 2px; }
+  /* History */
+  .history { display: flex; flex-direction: column; gap: 8px; }
+  .hist { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+  .hist > summary { list-style: none; cursor: pointer; padding: 10px 14px; display: flex; gap: 10px; align-items: center; }
+  .hist > summary::-webkit-details-marker { display: none; }
+  .hist .h-instr { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hist .h-body { padding: 0 14px 14px; }
+  .hist[open] > summary .h-instr { white-space: normal; }
 
-    .card-actions { margin-top: 14px; display: flex; justify-content: flex-end; }
-    .btn-sm-reset { background: transparent; border: 1px solid #334155; color: var(--text-muted); font-size: 11px; padding: 4px 8px; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
-    .btn-sm-reset:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+  /* Activity */
+  .activity { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+  .activity li { display: flex; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); }
+  .activity li:first-child { border-top: 0; }
+  .activity time { color: var(--muted); font-family: var(--mono); font-size: 11.5px; flex: none; padding-top: 1px; }
 
-    /* Bottom Split: Tasks & Live Telemetry */
-    .bottom-split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    .panel { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 18px; }
-    
-    .event-log { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; padding-right: 6px; font-size: 12px; font-family: monospace; }
-    .event-item { background: #0b111e; border: 1px solid #1a2335; border-radius: 6px; padding: 8px 12px; display: flex; gap: 10px; align-items: center; }
-    .event-time { color: var(--text-muted); font-size: 10px; white-space: nowrap; }
-    .event-type-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; font-weight: 700; }
-    .badge-success { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
-    .badge-limit { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); }
-    .badge-handoff { background: rgba(0, 243, 255, 0.2); color: var(--accent-cyan); }
-    .badge-cooldown { background: rgba(168, 85, 247, 0.2); color: var(--accent-purple); }
+  /* Setup / settings */
+  .kv { display: grid; grid-template-columns: 1fr auto; gap: 0; }
+  .kv > * { padding: 12px 0; border-top: 1px solid var(--border); }
+  .kv > :nth-child(-n+2) { border-top: 0; }
+  .agent-setup { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: var(--surface); }
+  .agent-setup + .agent-setup { margin-top: 10px; }
+  .steps { margin: 10px 0 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; }
+  .cmd { display: flex; align-items: center; gap: 8px; margin-top: 6px; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 6px 6px 12px; }
+  .cmd code { flex: 1; font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: nowrap; }
+  .order-list { list-style: none; padding: 0; margin: 0; }
+  .order-list li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--border); }
+  .order-list li:first-child { border-top: 0; }
+  .order-num { width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: 12px; font-weight: 600; flex: none; }
+  .order-list li.off .order-num { visibility: hidden; }
+  .order-list li.off .o-name { color: var(--muted); }
+  input.text { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 7px 10px; width: 100%; }
+  .checklist { display: flex; gap: 8px; flex-wrap: wrap; }
+  .check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; background: var(--surface); }
+  .check .dot { width: 10px; height: 10px; }
 
-    @keyframes pulse {
-      from { opacity: 0.8; }
-      to { opacity: 1; text-shadow: 0 0 10px rgba(245, 158, 11, 0.5); }
-    }
-  </style>
+  dialog { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text); padding: 0; width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px); box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+  dialog::backdrop { background: rgba(0,0,0,.35); }
+  .dlg-head { display: flex; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+  .dlg-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 18px; }
+  .section-title { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
+
+  .toast-wrap { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 50; width: min(520px, calc(100vw - 32px)); }
+  .toast { background: var(--text); color: var(--bg); border-radius: 10px; padding: 10px 14px; font-size: 13.5px; box-shadow: 0 8px 24px rgba(0,0,0,.2); }
+  .toast.err { background: var(--err); color: #fff; }
+
+  .scrim { display: none; }
+
+  @keyframes pulse { 50% { opacity: .35; } }
+  @keyframes slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(310%); } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .progress > span { width: 100%; opacity: .5; }
+  }
+
+  @media (max-width: 860px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 290px; z-index: 30; transform: translateX(-100%); transition: transform .2s; box-shadow: 0 0 40px rgba(0,0,0,.2); }
+    .app.drawer-open .sidebar { transform: none; }
+    .app.drawer-open .scrim { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.3); z-index: 20; }
+    .btn.menu-btn { display: inline-flex; }
+    .topbar { padding: 10px 16px; flex-wrap: wrap; }
+    .pills { order: 3; flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+    .content { padding: 18px 16px 60px; }
+    .composer-foot { padding: 10px 14px; }
+    .composer-foot .spacer { display: none; }
+    .kbd { display: none; }
+  }
+</style>
 </head>
 <body>
-
-  <header>
+<div class="app" id="app">
+  <div class="scrim" data-action="close-drawer"></div>
+  <aside class="sidebar" aria-label="Project and tasks">
     <div class="brand">
-      <h1>🕸️ AgentMesh</h1>
-      <span class="status-pill pill-green" id="fleet-indicator">● Fleet Online</span>
-      <span class="status-pill pill-purple" id="safe-indicator" style="display:none;">🛡️ Local Ollama Mode</span>
+      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="currentColor" opacity=".9"/><g style="stroke:var(--bg)" stroke-width="1.8" fill="none"><path d="M10 11L22 11L16 22Z"/></g><g style="fill:var(--bg)"><circle cx="10" cy="11" r="3"/><circle cx="22" cy="11" r="3"/><circle cx="16" cy="22" r="3"/></g></svg>
+      AgentMesh
     </div>
 
-    <div class="header-actions">
-      <button class="safe-toggle" id="safe-mode-btn" onclick="toggleSafeMode()">
-        <span>🛡️</span>
-        <span id="safe-btn-text">Local-Only (Safe Mode): OFF</span>
-      </button>
-      <button class="btn-sm-reset" onclick="refreshData()">↻ Refresh</button>
-    </div>
-  </header>
-
-  <!-- Task Dispatcher -->
-  <div class="dispatch-bar">
-    <input type="text" class="dispatch-input" id="task-input" placeholder="Enter task instruction (e.g. 'Build auth middleware in src/auth.ts and verify tests')...">
-    <select class="dispatch-select" id="agent-override">
-      <option value="">Auto Failover (Smart Priority)</option>
-      <option value="ollama">Ollama (100% Free / Local)</option>
-      <option value="claude">Claude Code</option>
-      <option value="codex">OpenAI Codex</option>
-      <option value="agy">Antigravity (agy)</option>
-      <option value="gemini">Google Gemini</option>
-      <option value="opencode">OpenCode AI</option>
-    </select>
-    <button class="btn-primary" onclick="dispatchTask()">Dispatch Task</button>
-  </div>
-
-  <div class="section-title">Agent Fleet & Live Rate-Limit Gauges</div>
-  <div class="agent-grid" id="agent-grid">
-    <!-- Populated dynamically via JS / SSE -->
-  </div>
-
-  <div class="section-title">Active AI Subscription Telemetry (Direct System Ingestion)</div>
-  <div class="agent-grid" style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); margin-bottom: 25px;">
-    <!-- Claude Code Live Telemetry Card -->
-    <div class="agent-card" id="card-telemetry-claude">
-      <div class="card-top">
-        <div>
-          <div class="card-title">Claude Code (Anthropic)</div>
-          <div class="card-sub" id="claude-telemetry-sub">~/.claude/projects/ session logs</div>
-        </div>
-        <span class="status-pill pill-purple" id="claude-telemetry-model">claude-opus-5-5</span>
-      </div>
-      <div class="stats-row" style="margin-top:15px;">
-        <div>
-          <div class="stat-label">Active Tokens</div>
-          <div class="stat-val" style="color:var(--accent-cyan);" id="claude-today-tokens">--</div>
-        </div>
-        <div>
-          <div class="stat-label">Output Tokens</div>
-          <div class="stat-val" style="color:var(--accent-green);" id="claude-output-tokens">--</div>
-        </div>
-        <div>
-          <div class="stat-label">Cache Hits</div>
-          <div class="stat-val" style="color:var(--accent-amber);" id="claude-cache-tokens">--</div>
+    <div>
+      <div class="group-label">Project folder</div>
+      <div class="project">
+        <div class="project-name" id="project-name">…</div>
+        <div class="project-path" id="project-path" title=""></div>
+        <div class="project-actions">
+          <button class="btn sm" data-action="open-project">Change</button>
+          <button class="btn sm ghost" data-action="open-folder">Open</button>
         </div>
       </div>
     </div>
 
-    <!-- OpenAI Codex Live Telemetry Card -->
-    <div class="agent-card" id="card-telemetry-codex">
-      <div class="card-top">
-        <div>
-          <div class="card-title">OpenAI Codex (Desktop / CLI)</div>
-          <div class="card-sub" id="codex-telemetry-sub">~/.codex/state_5.sqlite database</div>
-        </div>
-        <span class="status-pill pill-green" id="codex-telemetry-model">gpt-6-astra</span>
-      </div>
-      <div class="stats-row" style="margin-top:15px;">
-        <div>
-          <div class="stat-label">Cumulative Tokens</div>
-          <div class="stat-val" style="color:var(--accent-cyan);" id="codex-today-tokens">--</div>
-        </div>
-        <div>
-          <div class="stat-label">Active Threads</div>
-          <div class="stat-val" style="color:var(--accent-green);" id="codex-threads-count">--</div>
-        </div>
-        <div>
-          <div class="stat-label">Status</div>
-          <div class="stat-val" style="color:var(--accent-purple);" id="codex-process-status">ONLINE</div>
-        </div>
-      </div>
-      <div id="codex-latest-title" style="font-size:11px; color:var(--text-muted); margin-top:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
-    </div>
-  </div>
+    <nav aria-label="Tasks">
+      <div class="group-label">Tasks <button class="btn sm ghost" data-action="new-task">+ New</button></div>
+      <ul class="task-list" id="task-list"></ul>
+      <details class="finished" id="finished-wrap" hidden>
+        <summary class="group-label" style="margin-top:12px">Finished <span id="finished-count"></span></summary>
+        <ul class="task-list" id="finished-list"></ul>
+      </details>
+    </nav>
 
-  <div class="bottom-split">
-    <!-- Active Tasks Panel -->
-    <div class="panel">
-      <div class="section-title">Active Managed Tasks</div>
-      <div id="tasks-container" style="display:flex; flex-direction:column; gap:10px;">
-        <div style="color:var(--text-muted); font-size:13px;">Loading tasks...</div>
-      </div>
+    <div class="sidebar-foot">
+      <button class="nav-btn" data-action="open-setup">🧰 Set up agents</button>
+      <button class="nav-btn" data-action="open-settings">⚙️ Settings</button>
+      <button class="nav-btn" data-action="open-activity">📜 Activity log</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <button class="btn sm menu-btn" data-action="open-drawer" aria-label="Show tasks">☰</button>
+      <div class="pills" id="pills" aria-label="Agents"></div>
+      <label class="switch" title="Only use the free agent that runs on this computer (Ollama). Paid subscriptions are never touched.">
+        <input type="checkbox" id="safe-toggle"> Free local mode
+      </label>
     </div>
 
-    <!-- Live Telemetry Stream -->
-    <div class="panel">
-      <div class="section-title">Real-Time Failover & Rate-Limit Telemetry</div>
-      <div class="event-log" id="event-log">
-        <!-- Live SSE events appear here -->
+    <div class="content">
+      <div id="notices"></div>
+
+      <section class="card composer" aria-labelledby="task-heading">
+        <div class="card-pad">
+          <div class="row" style="margin-bottom:10px">
+            <h1 id="task-heading">New task</h1>
+            <span class="spacer"></span>
+            <button class="btn sm" id="finish-task" data-action="finish-task" hidden>Mark task finished</button>
+          </div>
+          <label for="instruction" class="sr-only">What should the agents do?</label>
+          <textarea id="instruction" placeholder="What should the agents do? Describe it like you would to a person, e.g. “Add a contact form to the homepage that emails me the message.”"></textarea>
+          <div class="examples" id="examples">
+            <button class="chip" data-example="Explain what this project does and how its files fit together. Don't change anything.">Explain this project</button>
+            <button class="chip" data-example="Find and fix any obvious bugs. Tell me what you changed and why.">Find &amp; fix bugs</button>
+            <button class="chip" data-example="Write a README.md that explains how to run this project, in plain language.">Write a README</button>
+          </div>
+        </div>
+        <div class="composer-foot">
+          <label class="small muted" for="agent-select">Who does it</label>
+          <select id="agent-select" class="plain"></select>
+          <span class="spacer"></span>
+          <span class="kbd">Ctrl + Enter</span>
+          <button class="btn primary" id="start-btn" data-action="start">Start</button>
+        </div>
+      </section>
+
+      <section id="run" aria-live="polite"></section>
+
+      <section id="history-wrap" hidden>
+        <div class="row" style="margin: 8px 0 10px"><h2>Earlier steps on this task</h2></div>
+        <div class="history" id="history"></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<!-- Project dialog -->
+<dialog id="dlg-project" aria-labelledby="dlg-project-title">
+  <div class="dlg-head"><h2 id="dlg-project-title">Choose a project folder</h2><span class="spacer"></span><button class="btn sm ghost" data-close>Close</button></div>
+  <div class="dlg-body">
+    <p class="muted" style="margin:0">Agents only work inside this folder. Pick the folder that holds your project's files.</p>
+    <div><button class="btn primary" data-action="browse-folder">Browse…</button></div>
+    <div>
+      <div class="section-title">Or paste a folder path</div>
+      <div class="row">
+        <input class="text" id="folder-input" placeholder="C:\Users\you\Documents\my-website">
+        <button class="btn" data-action="set-folder">Use</button>
       </div>
+      <p class="small muted" style="margin:6px 0 0">Tip: in File Explorer, hold Shift, right-click the folder and choose “Copy as path”.</p>
+    </div>
+    <div id="recent-wrap">
+      <div class="section-title">Recent</div>
+      <div id="recent-list" class="history"></div>
     </div>
   </div>
+</dialog>
 
-  <script>
-    let state = {
-      agents: [],
-      metrics: {},
-      tasks: [],
-      safeMode: false
-    };
+<!-- Setup dialog -->
+<dialog id="dlg-setup" aria-labelledby="dlg-setup-title">
+  <div class="dlg-head"><h2 id="dlg-setup-title">Set up your agents</h2><span class="spacer"></span><button class="btn sm ghost" data-close>Close</button></div>
+  <div class="dlg-body">
+    <div class="banner info">
+      <span>💡</span>
+      <span>You need <b>at least one</b> agent. Each is a free program; most use an AI subscription you may already have. To open PowerShell: press the <b>Windows key</b>, type <b>PowerShell</b>, press <b>Enter</b>. Paste a command with right-click, then press Enter.</span>
+    </div>
+    <div>
+      <div class="section-title">Step 1: Which folder should the agents work in?</div>
+      <div class="agent-setup row">
+        <div style="flex:1;min-width:0"><b id="setup-folder-name"></b><div class="small muted" id="setup-folder-path" style="overflow-wrap:anywhere"></div></div>
+        <button class="btn" data-action="open-project">Change</button>
+      </div>
+    </div>
+    <div class="section-title" style="margin-bottom:-10px">Step 2: Install at least one agent</div>
+    <div class="checklist" id="setup-summary"></div>
+    <div id="setup-agents"></div>
+    <div class="row">
+      <button class="btn" data-action="recheck">↻ Check again</button>
+      <span class="small muted" id="recheck-note">Installed something? Press this. No restart needed.</span>
+      <span class="spacer"></span>
+      <button class="btn primary" data-action="finish-setup">Done</button>
+    </div>
+  </div>
+</dialog>
 
-    async function init() {
-      await refreshData();
-      connectSse();
-      // Client-side local timer tick every second for smooth countdowns
-      setInterval(clientTick, 1000);
+<!-- Settings dialog -->
+<dialog id="dlg-settings" aria-labelledby="dlg-settings-title">
+  <div class="dlg-head"><h2 id="dlg-settings-title">Settings</h2><span class="spacer"></span><button class="btn sm ghost" data-close>Close</button></div>
+  <div class="dlg-body">
+    <div>
+      <div class="section-title">Order agents are tried in. If one hits its usage limit, the next one takes over.</div>
+      <ul class="order-list" id="order-list"></ul>
+    </div>
+    <div>
+      <div class="section-title">Safety</div>
+      <div class="kv">
+        <div><b>Let agents edit files</b><div class="small muted">Off = agents only read your project and explain what they'd change.</div></div>
+        <label class="switch"><input type="checkbox" id="set-edit"><span class="sr-only">Let agents edit files</span></label>
+        <div><b>Save a git checkpoint on handoff</b><div class="small muted">For git projects. Commits files git already tracks when one agent hands over to another. New files are never included.</div></div>
+        <label class="switch"><input type="checkbox" id="set-commit"><span class="sr-only">Save a git checkpoint on handoff</span></label>
+      </div>
+    </div>
+    <div>
+      <div class="section-title">Local model for Ollama</div>
+      <div class="row"><input class="text" id="set-model" placeholder="qwen2.5:7b"><button class="btn" data-action="save-model">Save</button></div>
+    </div>
+    <div>
+      <div class="section-title">Today's usage (read from your own Claude Code and Codex history on this computer)</div>
+      <div class="kv" id="usage"></div>
+    </div>
+    <div class="row"><button class="btn" data-action="reset-all">Let all resting agents try again now</button></div>
+  </div>
+</dialog>
+
+<!-- Activity dialog -->
+<dialog id="dlg-activity" aria-labelledby="dlg-activity-title">
+  <div class="dlg-head"><h2 id="dlg-activity-title">Activity log</h2><span class="spacer"></span><button class="btn sm ghost" data-close>Close</button></div>
+  <div class="dlg-body"><ul class="activity" id="activity"></ul></div>
+</dialog>
+
+<div class="toast-wrap" id="toasts" aria-live="assertive"></div>
+
+<script>
+(() => {
+  const TOKEN = document.querySelector('meta[name="agentmesh-token"]').content;
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const stripAnsi = (s) => String(s ?? '').replace(/\x1b\[[0-9;?]*[ -\/]*[@-~]/g, '');
+
+  const WIN = navigator.platform.startsWith('Win') || navigator.userAgent.includes('Windows');
+  const GUIDE = {
+    claude: { name: 'Claude Code', by: 'Anthropic', cost: 'Needs a Claude Pro or Max plan.',
+      install: WIN ? 'irm https://claude.ai/install.ps1 | iex' : 'curl -fsSL https://claude.ai/install.sh | bash',
+      signin: 'Type claude and press Enter. A browser opens: sign in, then close that window.', docs: 'https://code.claude.com/docs/en/setup' },
+    codex: { name: 'OpenAI Codex', by: 'OpenAI', cost: 'Needs a ChatGPT Plus, Pro or Business plan.',
+      install: WIN ? 'powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"' : 'npm install -g @openai/codex',
+      signin: 'Type codex, press Enter and choose "Sign in with ChatGPT".', docs: 'https://github.com/openai/codex' },
+    gemini: { name: 'Google Gemini', by: 'Google', cost: 'Free with a Google account (with daily limits).',
+      install: 'npm install -g @google/gemini-cli',
+      signin: 'Type gemini, press Enter and choose "Sign in with Google".', docs: 'https://github.com/google-gemini/gemini-cli' },
+    agy: { name: 'Google Antigravity', by: 'Google', cost: 'Sign in with a Google account.',
+      install: WIN ? 'irm https://antigravity.google/cli/install.ps1 | iex' : null,
+      signin: 'Type agy and press Enter. A browser opens: sign in.', docs: 'https://antigravity.google/docs/cli/install' },
+    opencode: { name: 'OpenCode', by: 'SST', cost: 'Uses an AI provider account you connect. Some providers bill per use.',
+      install: 'npm install -g opencode-ai',
+      signin: 'Type opencode, press Enter, then type /connect and pick a provider.', docs: 'https://opencode.ai/docs/' },
+    ollama: { name: 'Ollama', by: 'Runs on this computer', cost: 'Free and private. Slower, and the model download is several GB.',
+      install: WIN ? 'irm https://ollama.com/install.ps1 | iex' : null,
+      signin: null, docs: 'https://ollama.com/download' }
+  };
+
+  const state = { data: null, task: null, run: null, events: [], busy: false, dismissed: null };
+
+  // ---------- API ----------
+  async function api(path, body) {
+    const res = await fetch(path, body === undefined
+      ? { headers: { 'x-agentmesh-token': TOKEN } }
+      : { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-agentmesh-token': TOKEN }, body: JSON.stringify(body) });
+    // AgentMesh was restarted and issued a new token: reload to pick it up.
+    if (res.status === 401) { location.reload(); throw new Error('Reconnecting to AgentMesh…'); }
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`);
+    return json;
+  }
+
+  function toast(msg, kind) {
+    const el = document.createElement('div');
+    el.className = `toast ${kind || ''}`;
+    el.textContent = msg;
+    $('#toasts').appendChild(el);
+    setTimeout(() => el.remove(), kind === 'err' ? 7000 : 3500);
+  }
+
+  async function act(fn) {
+    try { await fn(); } catch (e) { toast(e.message, 'err'); }
+  }
+
+  // ---------- Load ----------
+  async function refresh() {
+    const data = await api('/api/state');
+    state.data = data;
+    if (data.run && data.run.runId !== state.dismissed && (!state.run || state.run.runId === data.run.runId || data.run.status === 'running')) state.run = data.run;
+    state.task = data.currentTaskId ? await api(`/api/tasks/${data.currentTaskId}`) : null;
+    render();
+  }
+
+  // ---------- Render ----------
+  function agentState(a) {
+    const d = state.data;
+    const running = state.run && state.run.status === 'running' && state.run.agent === a.id;
+    if (running) return { cls: 'busy', label: 'Working' };
+    if (a.priority === null) return { cls: 'off', label: 'Turned off' };
+    if (!a.available) return { cls: 'off', label: a.detail && a.id === 'ollama' && a.detail.startsWith('Model') ? 'Needs model' : 'Not set up' };
+    if (d.safeMode && a.subscription) return { cls: '', label: 'Paused (free mode)' };
+    if (a.inCooldown && a.cooldownUntil) return { cls: 'warn', label: `Resting ${fmtLeft(a.cooldownUntil)}`, cooldown: true };
+    return { cls: 'ok', label: 'Ready' };
+  }
+
+  function fmtLeft(until) {
+    const s = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+    if (s >= 3600) return `${Math.floor(s / 3600)}h ${Math.ceil((s % 3600) / 60)}m`;
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+  function fmtDur(ms) {
+    const s = Math.round(ms / 1000);
+    return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
+  }
+  function fmtWhen(ts) {
+    const d = new Date(ts), now = new Date();
+    return d.toDateString() === now.toDateString() ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+  const agentName = (id) => (state.data?.agents.find((a) => a.id === id)?.name) || GUIDE[id]?.name || id;
+  const folderName = (p) => (p || '').split(/[\\/]/).filter(Boolean).pop() || p;
+
+  function render() {
+    const d = state.data;
+    if (!d) return;
+
+    $('#project-name').textContent = folderName(d.workspace);
+    $('#project-path').textContent = d.workspace;
+    $('#project-path').title = d.workspace;
+    $('#safe-toggle').checked = d.safeMode;
+
+    renderPills();
+    renderTasks();
+    renderComposer();
+    renderRun();
+    renderHistory();
+    renderNotices();
+  }
+
+  function renderPills() {
+    $('#pills').innerHTML = state.data.agents.map((a) => {
+      const s = agentState(a);
+      return `<button class="pill" data-action="${s.cooldown ? 'agent-reset' : 'open-setup'}" data-agent="${a.id}" title="${esc(s.cooldown ? 'Hit its usage limit. Click to let it try again now.' : a.detail || a.version || '')}">
+        <span class="dot ${s.cls}"></span>${esc(a.name)} <span class="state" data-cooldown="${s.cooldown ? a.cooldownUntil : ''}">${esc(s.label)}</span></button>`;
+    }).join('');
+  }
+
+  function taskButton(t) {
+    const cur = t.taskId === state.data.currentTaskId;
+    const meta = t.status === 'completed' ? 'Finished' : `${t.runs} step${t.runs === 1 ? '' : 's'} · ${fmtWhen(t.updatedAt)}`;
+    return `<li><button class="task-item ${t.status === 'completed' ? 'done' : ''}" data-action="select-task" data-task="${t.taskId}" aria-current="${cur}">
+      <span class="t-title">${esc(t.title)}</span><span class="t-meta">${esc(meta)}</span></button></li>`;
+  }
+
+  function renderTasks() {
+    const open = state.data.tasks.filter((t) => t.status !== 'completed');
+    const done = state.data.tasks.filter((t) => t.status === 'completed');
+    $('#task-list').innerHTML = open.length ? open.map(taskButton).join('') : '<li class="small muted" style="padding:4px 8px">No tasks yet. Type below to start one.</li>';
+    $('#finished-wrap').hidden = done.length === 0;
+    $('#finished-count').textContent = done.length ? `(${done.length})` : '';
+    $('#finished-list').innerHTML = done.map(taskButton).join('');
+  }
+
+  function renderComposer() {
+    const t = state.task;
+    $('#task-heading').textContent = t ? t.title : 'New task';
+    $('#finish-task').hidden = !t;
+    $('#examples').hidden = !!t;
+    $('#instruction').placeholder = t
+      ? 'What should happen next on this task? e.g. “Now make the button blue.”'
+      : 'What should the agents do? Describe it like you would to a person, e.g. “Add a contact form to the homepage that emails me the message.”';
+
+    const sel = $('#agent-select');
+    const prev = sel.value;
+    const usable = state.data.agents.filter((a) => a.available && !(state.data.safeMode && a.subscription));
+    sel.innerHTML = `<option value="">Automatic (best available)</option>` + usable.map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join('');
+    if ([...sel.options].some((o) => o.value === prev)) sel.value = prev;
+
+    const running = state.run?.status === 'running';
+    $('#start-btn').disabled = running || state.busy;
+    $('#start-btn').textContent = running ? 'Working…' : 'Start';
+  }
+
+  function renderRun() {
+    const r = state.run;
+    const el = $('#run');
+    if (!r || (state.task && r.taskId !== state.task.taskId && r.status !== 'running')) { el.innerHTML = ''; return; }
+
+    const handoffs = (r.handoffs || []).map((h) => `<div class="handoff">↪ <b>${esc(agentName(h.from))}</b> ${h.reason === 'rate_limit' ? 'hit its usage limit' : 'ran into a problem'}, so <b>${esc(agentName(h.to))}</b> is taking over from where it left off.</div>`).join('');
+
+    if (r.status === 'running') {
+      const who = r.agent ? agentName(r.agent) : 'An agent';
+      const access = r.agent === 'ollama'
+        ? 'Ollama reads your project and answers; it can’t change files itself.'
+        : state.data.config.permission === 'edit'
+          ? `It can edit files in <b>${esc(folderName(state.data.workspace))}</b>.`
+          : 'Read-only: it will not change your files.';
+      el.innerHTML = `<div class="card card-pad">
+        <div class="run-head">
+          <div class="run-icon">…</div>
+          <div style="flex:1;min-width:0">
+            <h2>${esc(who)} is working</h2>
+            <div class="muted small">${access} This can take a few minutes. Started ${fmtWhen(r.startedAt)}.</div>
+          </div>
+          <button class="btn danger" data-action="stop">Stop</button>
+        </div>
+        <div class="progress"><span></span></div>
+        <div class="small muted" style="margin-top:8px">“${esc(r.instruction.slice(0, 200))}”</div>
+        <div class="timeline">${handoffs}</div>
+        <div class="output live" id="live-output">${esc(stripAnsi(r.output))}</div>
+      </div>`;
+      const out = $('#live-output');
+      out.scrollTop = out.scrollHeight;
+      return;
     }
 
-    async function refreshData() {
-      try {
-        const res = await fetch('/api/status');
-        const data = await res.json();
-        state.agents = data.agents || [];
-        state.metrics = data.metrics || {};
-        state.tasks = data.tasks || [];
-        state.safeMode = !!data.safeMode;
+    const res = r.result || {};
+    const files = (state.task?.runs || []).find((x) => x.runId === r.runId)?.filesChanged || [];
+    let icon = 'ok', title = `Done: ${esc(agentName(res.agent))} finished in ${fmtDur(res.durationMs || 0)}`;
+    if (res.cancelled) { icon = 'warn'; title = 'Stopped'; }
+    else if (!res.success) { icon = 'err'; title = 'Couldn’t finish this'; }
+    el.innerHTML = `<div class="card card-pad">
+      <div class="run-head">
+        <div class="run-icon ${icon}">${icon === 'ok' ? '✓' : icon === 'warn' ? '■' : '!'}</div>
+        <div style="flex:1;min-width:0">
+          <h2>${title}</h2>
+          <div class="muted small">“${esc(r.instruction.slice(0, 200))}”</div>
+        </div>
+        <button class="btn sm ghost" data-action="dismiss-run">Hide</button>
+      </div>
+      <div class="timeline">${handoffs}</div>
+      ${!res.success && !res.cancelled ? `<div class="banner err" style="margin-top:12px;white-space:pre-wrap">${esc(res.error)}</div>${helpFor(res.error)}` : ''}
+      ${files.length ? `<div class="small muted" style="margin-top:12px">Files changed</div><div class="files">${files.map((f) => `<span class="file">${esc(f)}</span>`).join('')}</div>` : ''}
+      ${res.output ? `<div class="output md">${md(res.output)}</div>` : ''}
+    </div>`;
+  }
 
-        if (data.claudeLiveStats) {
-          const elToday = document.getElementById('claude-today-tokens');
-          const elOut = document.getElementById('claude-output-tokens');
-          const elCache = document.getElementById('claude-cache-tokens');
-          if (elToday) elToday.textContent = Number(data.claudeLiveStats.todayTokens || 0).toLocaleString();
-          if (elOut) elOut.textContent = Number(data.claudeLiveStats.totalOutputTokens || 0).toLocaleString();
-          if (elCache) elCache.textContent = Number(data.claudeLiveStats.cacheReadTokens || 0).toLocaleString();
-        }
+  function helpFor(err) {
+    if (!err) return '';
+    if (/not installed|Not set up|No agent could/i.test(err)) return `<div style="margin-top:10px"><button class="btn" data-action="open-setup">Open agent setup</button></div>`;
+    return '';
+  }
 
-        if (data.codexLiveStats) {
-          const elToday = document.getElementById('codex-today-tokens');
-          const elThreads = document.getElementById('codex-threads-count');
-          const elModel = document.getElementById('codex-telemetry-model');
-          const elTitle = document.getElementById('codex-latest-title');
-          if (elToday) elToday.textContent = Number(data.codexLiveStats.tokensUsedToday || 0).toLocaleString();
-          if (elThreads) elThreads.textContent = data.codexLiveStats.activeThreads || 0;
-          if (elModel && data.codexLiveStats.model) elModel.textContent = data.codexLiveStats.model;
-          if (elTitle && data.codexLiveStats.latestThreadTitle) {
-            elTitle.textContent = 'Latest: ' + data.codexLiveStats.latestThreadTitle;
-          }
-        }
+  function renderHistory() {
+    const runs = (state.task?.runs || []).slice().reverse().filter((x) => !(state.run && x.runId === state.run.runId));
+    $('#history-wrap').hidden = runs.length === 0;
+    $('#history').innerHTML = runs.map((x) => `<details class="hist">
+      <summary><span class="dot ${x.success ? 'ok' : x.cancelled ? 'warn' : 'err'}"></span>
+        <span class="h-instr">${esc(x.instruction)}</span>
+        <span class="small muted">${esc(x.agent ? agentName(x.agent) : '')} · ${fmtWhen(x.startedAt)}</span></summary>
+      <div class="h-body">
+        ${x.handoffs?.length ? `<div class="small muted">Handed off: ${x.handoffs.map((h) => `${esc(agentName(h.from))} → ${esc(agentName(h.to))}`).join(', ')}</div>` : ''}
+        ${x.filesChanged?.length ? `<div class="files">${x.filesChanged.map((f) => `<span class="file">${esc(f)}</span>`).join('')}</div>` : ''}
+        ${x.output ? `<div class="output md">${md(x.output)}</div>` : ''}
+        ${!x.success && x.error ? `<div class="banner err" style="margin-top:10px;white-space:pre-wrap">${esc(x.error)}</div>` : ''}
+      </div></details>`).join('');
+  }
 
-        renderAll();
-      } catch (err) {
-        console.error('Failed to load status:', err);
+  function renderNotices() {
+    const d = state.data;
+    const usable = d.agents.filter((a) => a.available && a.priority !== null);
+    const notes = [];
+    if (usable.length === 0) {
+      notes.push(`<div class="banner warn"><span>⚠️</span><span style="flex:1">No agents are ready yet. Install at least one so AgentMesh has someone to hand work to.</span><button class="btn sm" data-action="open-setup">Set up agents</button></div>`);
+    }
+    if (d.safeMode) {
+      const ollama = d.agents.find((a) => a.id === 'ollama');
+      notes.push(`<div class="banner info"><span>🛡️</span><span>Free local mode is on: only Ollama on this computer is used. Paid subscriptions are never touched.${ollama && !ollama.available ? ` <b>Ollama isn't ready:</b> ${esc(ollama.detail || '')}` : ''}</span></div>`);
+    }
+    $('#notices').innerHTML = notes.join('');
+  }
+
+  // Minimal, safe markdown: escape everything first, then add a few formats.
+  function md(src) {
+    const text = stripAnsi(src);
+    const blocks = [];
+    let s = esc(text).replace(/```[^\n]*\n([\s\S]*?)```/g, (_, code) => { blocks.push(code); return `\u0000${blocks.length - 1}\u0000`; });
+    s = s.split(/\n{2,}/).map((para) => {
+      if (/^\u0000\d+\u0000$/.test(para.trim())) return para.trim();
+      const lines = para.split('\n');
+      if (lines.every((l) => /^\s*([-*]|\d+\.)\s+/.test(l))) {
+        const ordered = /^\s*\d+\./.test(lines[0]);
+        return `<${ordered ? 'ol' : 'ul'}>${lines.map((l) => `<li>${inline(l.replace(/^\s*([-*]|\d+\.)\s+/, ''))}</li>`).join('')}</${ordered ? 'ol' : 'ul'}>`;
       }
-    }
+      const h = para.match(/^#{1,4}\s+(.*)$/);
+      if (h && lines.length === 1) return `<h3>${inline(h[1])}</h3>`;
+      return `<p>${lines.map(inline).join('<br>')}</p>`;
+    }).join('');
+    return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<pre><code>${blocks[Number(i)]}</code></pre>`);
+  }
+  function inline(s) {
+    return s.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  }
 
-    function connectSse() {
-      const sse = new EventSource('/api/telemetry/stream');
-      
-      sse.onmessage = (e) => {
-        try {
-          const payload = JSON.parse(e.data);
-          if (payload.type === 'tick') {
-            state.metrics = payload.metrics;
-            updateGauges();
-          } else if (payload.event) {
-            appendEvent(payload.event);
-            if (payload.event.type === 'safe_mode_toggled') {
-              state.safeMode = payload.event.details?.safeMode;
-              updateSafeModeUI();
-            }
-          }
-        } catch {}
-      };
-
-      sse.onerror = () => {
-        document.getElementById('fleet-indicator').textContent = '○ Reconnecting...';
-        document.getElementById('fleet-indicator').className = 'status-pill pill-amber';
-      };
-
-      sse.onopen = () => {
-        document.getElementById('fleet-indicator').textContent = '● Fleet Online';
-        document.getElementById('fleet-indicator').className = 'status-pill pill-green';
-      };
-    }
-
-    function updateSafeModeUI() {
-      const btn = document.getElementById('safe-mode-btn');
-      const text = document.getElementById('safe-btn-text');
-      const safeInd = document.getElementById('safe-indicator');
-
-      if (state.safeMode) {
-        btn.classList.add('active');
-        text.textContent = 'Local-Only (Safe Mode): ON';
-        safeInd.style.display = 'inline-flex';
-      } else {
-        btn.classList.remove('active');
-        text.textContent = 'Local-Only (Safe Mode): OFF';
-        safeInd.style.display = 'none';
-      }
-    }
-
-    async function toggleSafeMode() {
-      const next = !state.safeMode;
-      await fetch('/api/mode', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ safeMode: next })
-      });
-      state.safeMode = next;
-      updateSafeModeUI();
-      renderAgents();
-    }
-
-    async function resetAgent(agentId) {
-      await fetch('/api/reset-cooldown', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId })
-      });
-      refreshData();
-    }
-
-    async function dispatchTask() {
-      const input = document.getElementById('task-input');
-      const override = document.getElementById('agent-override').value;
-      const instruction = input.value.trim();
-      if (!instruction) return;
-
-      appendEvent({
-        id: 'local-' + Date.now(),
-        type: 'request_start',
-        timestamp: Date.now(),
-        message: 'Dispatching task: ' + instruction.slice(0, 50) + '...'
-      });
-
-      input.value = '';
-      try {
-        const res = await fetch('/api/run', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ instruction, forcedAgent: override || undefined })
-        });
-        const result = await res.json();
-        if (result.success) {
-          appendEvent({
-            id: 'local-' + Date.now(),
-            type: 'request_success',
-            timestamp: Date.now(),
-            message: `✔ Completed by [${result.agent}] in ${(result.durationMs / 1000).toFixed(2)}s`
-          });
+  // ---------- Setup ----------
+  function renderSetup() {
+    $('#setup-folder-name').textContent = folderName(state.data.workspace);
+    $('#setup-folder-path').textContent = state.data.workspace;
+    const agents = state.data.agents;
+    const ready = agents.filter((a) => a.available);
+    $('#setup-summary').innerHTML = agents.map((a) => `<span class="check"><span class="dot ${a.available ? 'ok' : 'off'}"></span>${esc(a.name)}</span>`).join('');
+    const order = ['claude', 'codex', 'gemini', 'agy', 'ollama', 'opencode'];
+    const sorted = [...agents].sort((a, b) => (a.available - b.available) || order.indexOf(a.id) - order.indexOf(b.id));
+    $('#setup-agents').innerHTML = (ready.length ? '' : '<p class="small muted" style="margin:0 0 10px">Not sure where to start? <b>Google Gemini</b> is free with a Google account. If you already pay for Claude or ChatGPT, set that one up first.</p>') +
+      sorted.map((a) => {
+        const g = GUIDE[a.id];
+        if (a.available) {
+          return `<div class="agent-setup"><div class="row"><span class="dot ok"></span><b>${esc(g.name)}</b><span class="small muted">${esc(a.version || '')}</span><span class="spacer"></span><span class="small" style="color:var(--ok)">Ready</span></div></div>`;
+        }
+        const model = state.data.config.ollamaModel;
+        const needsModel = a.id === 'ollama' && (a.detail || '').startsWith('Model');
+        const steps = [];
+        if (needsModel) {
+          steps.push(`Ollama is installed. Download the model it uses:${cmdBox(`ollama pull ${model}`)}`);
+        } else if (g.install) {
+          const npmNote = g.install.startsWith('npm') ? ' <span class="small muted">(uses Node.js, which you already have since AgentMesh runs on it)</span>' : '';
+          steps.push(`Open PowerShell and run this${npmNote}:${cmdBox(g.install)}`);
+          if (a.id === 'ollama') steps.push(`Then download the model:${cmdBox(`ollama pull ${model}`)}`);
+          steps.push('Close PowerShell and open a new one (so it notices the new program).');
+          if (g.signin) steps.push(esc(g.signin));
         } else {
-          appendEvent({
-            id: 'local-' + Date.now(),
-            type: 'rate_limit_hit',
-            timestamp: Date.now(),
-            message: `Execution issue: ${result.error || 'Failed'}`
-          });
+          steps.push(`Follow the install steps on the <a href="${g.docs}" target="_blank" rel="noopener">official page</a>.`);
+          if (g.signin) steps.push(esc(g.signin));
         }
-        refreshData();
-      } catch (err) {
-        appendEvent({
-          id: 'local-' + Date.now(),
-          type: 'rate_limit_hit',
-          timestamp: Date.now(),
-          message: `Network error: ${err.message}`
-        });
+        steps.push('Come back here and press <b>Check again</b>.');
+        return `<div class="agent-setup">
+          <div class="row"><span class="dot off"></span><b>${esc(g.name)}</b><span class="small muted">${esc(g.by)}</span><span class="spacer"></span>
+            <button class="btn sm" data-action="copy-ai" data-agent="${a.id}" title="Copies a message you can paste into ChatGPT, Claude or Gemini to get walked through this">Ask an AI to help</button></div>
+          <div class="small muted" style="margin-top:4px">${esc(g.cost)} ${a.detail && !/Not installed/.test(a.detail) ? `<b>${esc(a.detail)}</b>` : ''}</div>
+          <ol class="steps">${steps.map((s) => `<li>${s}</li>`).join('')}</ol>
+          <div class="small" style="margin-top:8px"><a href="${g.docs}" target="_blank" rel="noopener">Official instructions ↗</a></div>
+        </div>`;
+      }).join('');
+  }
+
+  function cmdBox(cmd) {
+    return `<div class="cmd"><code>${esc(cmd)}</code><button class="btn sm" data-action="copy" data-text="${esc(cmd)}">Copy</button></div>`;
+  }
+
+  function aiPrompt(id) {
+    const g = GUIDE[id];
+    const sys = WIN ? 'Windows' : 'my computer';
+    return `I'm on ${sys} and I'm not very technical. Please walk me through installing ${g.name} step by step.\n\n` +
+      (g.install ? `The official install command is:\n\n${g.install}\n\n` : `The official instructions are here: ${g.docs}\n\n`) +
+      `Tell me how to open ${WIN ? 'PowerShell' : 'a terminal'}, where to paste the command, and what I should see if it worked.` +
+      (g.signin ? ` Then help me sign in: ${g.signin}` : '') +
+      (id === 'ollama' ? ` Afterwards I need to run: ollama pull ${state.data.config.ollamaModel}` : '') +
+      `\n\nFinally, have me run "${id === 'ollama' ? 'ollama' : id} --version" to confirm it's installed. If anything fails, ask me to paste the exact error message. Official page: ${g.docs}`;
+  }
+
+  // ---------- Settings ----------
+  function renderSettings() {
+    const d = state.data;
+    const pr = d.config.priority;
+    const all = [...pr, ...d.agents.map((a) => a.id).filter((id) => !pr.includes(id))];
+    $('#order-list').innerHTML = all.map((id) => {
+      const on = pr.includes(id);
+      const a = d.agents.find((x) => x.id === id);
+      const i = pr.indexOf(id);
+      return `<li class="${on ? '' : 'off'}">
+        <span class="order-num">${on ? i + 1 : ''}</span>
+        <span class="o-name" style="flex:1">${esc(a?.name || id)} ${a && !a.available ? '<span class="small muted">(not set up)</span>' : ''}</span>
+        <button class="btn sm ghost" data-action="move" data-agent="${id}" data-dir="-1" ${!on || i === 0 ? 'disabled' : ''} aria-label="Move ${esc(a?.name)} up">↑</button>
+        <button class="btn sm ghost" data-action="move" data-agent="${id}" data-dir="1" ${!on || i === pr.length - 1 ? 'disabled' : ''} aria-label="Move ${esc(a?.name)} down">↓</button>
+        <label class="switch"><input type="checkbox" data-action="toggle-agent" data-agent="${id}" ${on ? 'checked' : ''}><span class="sr-only">Use ${esc(a?.name)}</span></label>
+      </li>`;
+    }).join('');
+    $('#set-edit').checked = d.config.permission === 'edit';
+    $('#set-commit').checked = d.config.autoCommit;
+    $('#set-model').value = d.config.ollamaModel;
+    const u = d.usage || {};
+    const n = (x) => Number(x || 0).toLocaleString();
+    $('#usage').innerHTML =
+      `<div>Claude Code</div><div class="muted">${u.claude ? `${n(u.claude.todayTokens)} tokens` : 'no data'}</div>` +
+      `<div>OpenAI Codex</div><div class="muted">${u.codex ? `${n(u.codex.tokensUsedToday)} tokens` : 'no data'}</div>`;
+  }
+
+  async function saveConfig(patch) {
+    state.data.config = await api('/api/config', patch);
+    await refresh();
+    if ($('#dlg-settings').open) renderSettings();
+  }
+
+  // ---------- Activity ----------
+  const EVENT_TEXT = {
+    request_start: (e) => `${agentName(e.agentId)} started working`,
+    request_success: (e) => `${agentName(e.agentId)} finished`,
+    rate_limit_hit: (e) => (e.details?.reason || '').startsWith('Error:') ? `${agentName(e.agentId)} ran into a problem; resting briefly` : `${agentName(e.agentId)} hit its usage limit; resting ${Math.round((e.details?.cooldownDurationMs || 0) / 60000) || 1} min`,
+    handoff_triggered: (e) => `Handed over from ${agentName(e.details?.fromAgent)} to ${agentName(e.details?.toAgent)}`,
+    cooldown_expired: (e) => `${agentName(e.agentId)} is ready again`,
+    safe_mode_toggled: (e) => `Free local mode ${e.details?.safeMode ? 'turned on' : 'turned off'}`
+  };
+  function addEvent(e) {
+    if (!EVENT_TEXT[e.type]) return;
+    state.events.unshift(e);
+    state.events = state.events.slice(0, 200);
+    if ($('#dlg-activity').open) renderActivity();
+  }
+  function renderActivity() {
+    $('#activity').innerHTML = state.events.length
+      ? state.events.map((e) => `<li><time>${new Date(e.timestamp).toLocaleTimeString()}</time><span>${esc(EVENT_TEXT[e.type](e))}</span></li>`).join('')
+      : '<li class="muted">Nothing yet.</li>';
+  }
+
+  // ---------- Live events ----------
+  function connect() {
+    const es = new EventSource(`/api/events?token=${encodeURIComponent(TOKEN)}`);
+    es.onmessage = (m) => {
+      let p; try { p = JSON.parse(m.data); } catch { return; }
+      if (p.type === 'event') {
+        addEvent(p.event);
+        if (['rate_limit_hit', 'cooldown_expired', 'safe_mode_toggled'].includes(p.event.type)) scheduleRefresh();
+      } else if (p.type === 'run') {
+        onRun(p);
+      }
+    };
+    es.onopen = () => { if (state.disconnected) { state.disconnected = false; toast('Reconnected'); refresh().catch(() => {}); } };
+    es.onerror = () => {
+      // EventSource hides the status code; a quick API call tells a restart (401 → reload) from a stopped server.
+      api('/api/state').catch(() => {});
+      if (!state.disconnected) { state.disconnected = true; toast('Lost connection to AgentMesh. Is the AgentMesh window still open?', 'err'); }
+    };
+  }
+
+  let refreshTimer = null;
+  function scheduleRefresh() {
+    clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(() => refresh().catch(() => {}), 300);
+  }
+
+  function onRun(p) {
+    if (p.kind === 'started') { state.run = p.run; renderRun(); renderComposer(); renderPills(); return; }
+    if (!state.run || p.runId && p.runId !== state.run.runId && !p.run) return;
+    if (p.kind === 'agent') { state.run.agent = p.agentId; renderRun(); renderPills(); }
+    else if (p.kind === 'output') {
+      state.run.output += p.text;
+      const out = $('#live-output');
+      if (out) {
+        const atBottom = out.scrollHeight - out.scrollTop - out.clientHeight < 40;
+        out.textContent += stripAnsi(p.text);
+        if (atBottom) out.scrollTop = out.scrollHeight;
+      }
+    } else if (p.kind === 'handoff') {
+      state.run.handoffs.push({ from: p.from, to: p.to, reason: p.reason, error: p.error });
+      state.run.output = '';
+      renderRun();
+    } else if (p.kind === 'finished') {
+      state.run = p.run;
+      refresh().catch(() => {});
+      if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+        new Notification('AgentMesh', { body: p.run.result?.success ? 'Your task step is done.' : 'The agents stopped. Open AgentMesh to see why.' });
       }
     }
+  }
 
-    function renderAll() {
-      updateSafeModeUI();
-      renderAgents();
-      renderTasks();
+  // ---------- Actions ----------
+  async function start() {
+    const text = $('#instruction').value.trim();
+    if (!text) { $('#instruction').focus(); toast('Type what you want done first.'); return; }
+    state.busy = true; renderComposer();
+    try {
+      if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
+      await api('/api/runs', { instruction: text, forcedAgent: $('#agent-select').value || undefined, taskId: state.task?.taskId });
+      $('#instruction').value = '';
+      await refresh();
+    } catch (e) {
+      toast(e.message, 'err');
+    } finally {
+      state.busy = false; renderComposer();
     }
+  }
 
-    function renderAgents() {
-      const grid = document.getElementById('agent-grid');
-      grid.innerHTML = '';
-
-      state.agents.forEach(agent => {
-        const m = state.metrics[agent.id] || {
-          totalRequests: 0,
-          successfulRequests: 0,
-          rateLimitHits: 0,
-          otherErrors: 0,
-          currentCooldownRemainingSec: 0,
-          recoveryPercentage: 100,
-          status: 'ready'
-        };
-
-        const isSub = ['claude', 'codex', 'agy', 'gemini'].includes(agent.id);
-        const isBlockedBySafe = state.safeMode && isSub;
-        const isCooling = m.currentCooldownRemainingSec > 0;
-
-        let statusBadge = '<span class="status-pill pill-green">READY</span>';
-        if (isBlockedBySafe) {
-          statusBadge = '<span class="status-pill pill-purple">PROTECTED (SAFE)</span>';
-        } else if (isCooling) {
-          statusBadge = '<span class="status-pill pill-amber">COOLING DOWN</span>';
-        } else if (!agent.available) {
-          statusBadge = '<span style="color:var(--text-muted);font-size:11px;">OFFLINE</span>';
-        }
-
-        const card = document.createElement('div');
-        card.className = `agent-card ${isCooling ? 'cooling' : ''} ${isBlockedBySafe ? 'blocked-safe' : ''}`;
-        card.id = `card-${agent.id}`;
-
-        const timerDisplay = isCooling 
-          ? `<span class="timer-val cooling-clock" id="timer-${agent.id}">${formatTime(m.currentCooldownRemainingSec)}</span>` 
-          : `<span class="timer-val" style="color:var(--accent-green);font-size:16px;">100% AVAILABLE</span>`;
-
-        card.innerHTML = `
-          <div>
-            <div class="card-top">
-              <div>
-                <div class="card-title">${agent.name}</div>
-                <div class="card-sub">${agent.command} ${agent.version ? '· ' + agent.version : ''}</div>
-              </div>
-              ${statusBadge}
-            </div>
-
-            <div class="meter-container">
-              <div class="timer-readout">
-                <div class="timer-label">Rate-Limit Cooldown</div>
-                ${timerDisplay}
-                <div class="progress-bar-bg">
-                  <div class="progress-bar-fill ${isCooling ? 'amber' : ''}" id="bar-${agent.id}" style="width: ${m.recoveryPercentage}%"></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="stats-row">
-              <div>
-                <div class="stat-label">Total</div>
-                <div class="stat-val">${m.totalRequests}</div>
-              </div>
-              <div>
-                <div class="stat-label">Success</div>
-                <div class="stat-val" style="color:var(--accent-green);">${m.successfulRequests}</div>
-              </div>
-              <div>
-                <div class="stat-label">429 Hits</div>
-                <div class="stat-val" style="color:var(--accent-amber);">${m.rateLimitHits}</div>
-              </div>
-              <div>
-                <div class="stat-label">Errors</div>
-                <div class="stat-val" style="color:var(--accent-rose);">${m.otherErrors}</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="card-actions">
-            ${isCooling ? `<button class="btn-sm-reset" onclick="resetAgent('${agent.id}')">Reset Cooldown</button>` : ''}
-          </div>
-        `;
-
-        grid.appendChild(card);
-      });
+  const dialogs = { project: '#dlg-project', setup: '#dlg-setup', settings: '#dlg-settings', activity: '#dlg-activity' };
+  function openDialog(name) {
+    closeDrawer();
+    if (name === 'setup') renderSetup();
+    if (name === 'settings') renderSettings();
+    if (name === 'activity') renderActivity();
+    if (name === 'project') {
+      const recent = (state.data.config.recentWorkspaces || []).filter((p) => p !== state.data.workspace);
+      $('#recent-wrap').hidden = recent.length === 0;
+      $('#recent-list').innerHTML = recent.map((p) => `<button class="btn" style="justify-content:flex-start;border-radius:10px" data-action="use-recent" data-path="${esc(p)}"><b>${esc(folderName(p))}</b>&nbsp;<span class="small muted">${esc(p)}</span></button>`).join('');
+      $('#folder-input').value = '';
     }
+    $(dialogs[name]).showModal();
+  }
+  function hideRun() { state.dismissed = state.run?.runId ?? state.dismissed; state.run = null; }
+  function closeDrawer() { $('#app').classList.remove('drawer-open'); }
 
-    function renderTasks() {
-      const container = document.getElementById('tasks-container');
-      if (state.tasks.length === 0) {
-        container.innerHTML = '<div style="color:var(--text-muted); font-size:13px;">No active tasks. Create one using the dispatch bar above.</div>';
-        return;
-      }
+  async function switchFolder(fn) {
+    await fn();
+    $('#dlg-project').close();
+    if ($('#dlg-setup').open) renderSetup();
+    state.run = null;
+    toast(`Now working in ${folderName(state.data.workspace)}`);
+  }
 
-      container.innerHTML = state.tasks.slice(-5).map(t => `
-        <div style="background:#0b111e; border:1px solid #1a2335; border-radius:8px; padding:12px;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-weight:600; font-size:14px; color:#fff;">${escapeHtml(t.title)}</span>
-            <span class="status-pill ${t.status === 'in_progress' ? 'pill-green' : 'pill-amber'}">${t.status}</span>
-          </div>
-          <div style="font-size:11px; color:var(--text-muted); font-family:monospace; margin-top:4px;">
-            ID: ${t.taskId} | Active: ${t.currentAgent || 'none'} | Handoffs: ${t.handoffs?.length || 0}
-          </div>
-        </div>
-      `).join('');
-    }
+  const handlers = {
+    start,
+    stop: () => act(() => api('/api/runs/current/cancel', {})),
+    'new-task': () => act(async () => { await api('/api/tasks/new', {}); if (state.run?.status !== 'running') hideRun(); await refresh(); closeDrawer(); $('#instruction').focus(); }),
+    'select-task': (el) => act(async () => { await api(`/api/tasks/${el.dataset.task}/select`, {}); await refresh(); closeDrawer(); }),
+    'finish-task': () => act(async () => { await api(`/api/tasks/${state.task.taskId}/complete`, {}); if (state.run?.status !== 'running') hideRun(); await refresh(); toast('Task finished. Your next instruction starts a new one.'); }),
+    'dismiss-run': () => { hideRun(); renderRun(); renderHistory(); },
+    'open-project': () => openDialog('project'),
+    'open-setup': () => openDialog('setup'),
+    'open-settings': () => openDialog('settings'),
+    'open-activity': () => openDialog('activity'),
+    'open-folder': () => act(() => api('/api/workspace/open', {})),
+    'open-drawer': () => $('#app').classList.add('drawer-open'),
+    'close-drawer': closeDrawer,
+    'browse-folder': () => act(async () => {
+      toast('A folder picker opened. It may be behind this window.');
+      const r = await api('/api/workspace/browse', {});
+      if (r.unsupported) { toast('No folder picker available here. Paste the path instead.'); return; }
+      if (r.cancelled) return;
+      await switchFolder(refresh);
+    }),
+    'set-folder': () => act(() => switchFolder(async () => { await api('/api/workspace', { path: $('#folder-input').value }); await refresh(); })),
+    'use-recent': (el) => act(() => switchFolder(async () => { await api('/api/workspace', { path: el.dataset.path }); await refresh(); })),
+    recheck: (el) => act(async () => {
+      el.disabled = true; $('#recheck-note').textContent = 'Checking…';
+      try { await api('/api/agents/recheck', {}); await refresh(); renderSetup(); $('#recheck-note').textContent = 'Checked just now.'; }
+      finally { el.disabled = false; }
+    }),
+    'finish-setup': () => act(async () => { await saveConfig({ onboarded: true }); $('#dlg-setup').close(); }),
+    copy: (el) => navigator.clipboard.writeText(el.dataset.text).then(() => toast('Copied. Paste it into PowerShell with right-click.')),
+    'copy-ai': (el) => navigator.clipboard.writeText(aiPrompt(el.dataset.agent)).then(() => toast('Copied. Paste it into ChatGPT, Claude or Gemini and follow along.')),
+    'agent-reset': (el) => act(async () => { await api('/api/reset-cooldown', { agentId: el.dataset.agent }); await refresh(); toast(`${agentName(el.dataset.agent)} will be tried again.`); }),
+    'reset-all': () => act(async () => { await api('/api/reset-cooldown', {}); await refresh(); toast('All agents will be tried again.'); }),
+    move: (el) => act(() => {
+      const pr = [...state.data.config.priority];
+      const i = pr.indexOf(el.dataset.agent), j = i + Number(el.dataset.dir);
+      [pr[i], pr[j]] = [pr[j], pr[i]];
+      return saveConfig({ priority: pr });
+    }),
+    'toggle-agent': (el) => act(() => {
+      const pr = state.data.config.priority.filter((x) => x !== el.dataset.agent);
+      if (el.checked) pr.push(el.dataset.agent);
+      return saveConfig({ priority: pr });
+    }),
+    'save-model': () => act(async () => { await saveConfig({ ollamaModel: $('#set-model').value.trim() }); toast('Saved.'); })
+  };
 
-    function appendEvent(ev) {
-      const log = document.getElementById('event-log');
-      const item = document.createElement('div');
-      item.className = 'event-item';
+  document.addEventListener('click', (ev) => {
+    const ex = ev.target.closest('[data-example]');
+    if (ex) { $('#instruction').value = ex.dataset.example; $('#instruction').focus(); return; }
+    const close = ev.target.closest('[data-close]');
+    if (close) { close.closest('dialog').close(); return; }
+    if (ev.target.tagName === 'DIALOG') { ev.target.close(); return; }
+    const el = ev.target.closest('[data-action]');
+    if (!el || el.tagName === 'INPUT') return;
+    handlers[el.dataset.action]?.(el);
+  });
+  document.addEventListener('change', (ev) => {
+    const el = ev.target;
+    if (el.dataset.action === 'toggle-agent') handlers['toggle-agent'](el);
+    if (el.id === 'safe-toggle') act(async () => { await api('/api/mode', { safeMode: el.checked }); await refresh(); });
+    if (el.id === 'set-edit') act(() => saveConfig({ permission: el.checked ? 'edit' : 'readonly' }));
+    if (el.id === 'set-commit') act(() => saveConfig({ autoCommit: el.checked }));
+  });
+  $('#instruction').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); start(); }
+  });
+  $('#folder-input').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') handlers['set-folder'](); });
 
-      let badge = '<span class="event-type-badge badge-success">OK</span>';
-      if (ev.type.includes('rate_limit')) badge = '<span class="event-type-badge badge-limit">429 LIMIT</span>';
-      if (ev.type.includes('handoff')) badge = '<span class="event-type-badge badge-handoff">HANDOFF</span>';
-      if (ev.type.includes('cooldown')) badge = '<span class="event-type-badge badge-cooldown">COOLDOWN</span>';
+  // Countdown clocks on resting agents
+  setInterval(() => {
+    let expired = false;
+    document.querySelectorAll('[data-cooldown]').forEach((el) => {
+      const until = Number(el.dataset.cooldown);
+      if (!until) return;
+      if (until <= Date.now()) expired = true;
+      else el.textContent = `Resting ${fmtLeft(until)}`;
+    });
+    if (expired) scheduleRefresh();
+  }, 1000);
+  setInterval(() => { if (!document.hidden && state.run?.status !== 'running') refresh().catch(() => {}); }, 30_000);
 
-      item.innerHTML = `
-        <span class="event-time">${new Date(ev.timestamp).toLocaleTimeString()}</span>
-        ${badge}
-        <span style="color:#e2e8f0; flex:1;">${escapeHtml(ev.message)}</span>
-      `;
-      log.prepend(item);
-    }
-
-    function updateGauges() {
-      for (const [id, m] of Object.entries(state.metrics)) {
-        const timerEl = document.getElementById(`timer-${id}`);
-        const barEl = document.getElementById(`bar-${id}`);
-        if (timerEl) {
-          if (m.currentCooldownRemainingSec > 0) {
-            timerEl.textContent = formatTime(m.currentCooldownRemainingSec);
-            timerEl.className = 'timer-val cooling-clock';
-          } else {
-            timerEl.textContent = '100% AVAILABLE';
-            timerEl.className = 'timer-val';
-            timerEl.style.color = 'var(--accent-green)';
-            timerEl.style.fontSize = '16px';
-          }
-        }
-        if (barEl) {
-          barEl.style.width = `${m.recoveryPercentage}%`;
-        }
-      }
-    }
-
-    function clientTick() {
-      for (const [id, m] of Object.entries(state.metrics)) {
-        if (m.currentCooldownRemainingSec > 0) {
-          m.currentCooldownRemainingSec--;
-          const timerEl = document.getElementById(`timer-${id}`);
-          if (timerEl) {
-            timerEl.textContent = formatTime(m.currentCooldownRemainingSec);
-          }
-          if (m.currentCooldownRemainingSec <= 0) {
-            refreshData();
-          }
-        }
-      }
-    }
-
-    function formatTime(sec) {
-      const m = Math.floor(sec / 60);
-      const s = sec % 60;
-      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-    }
-
-    function escapeHtml(str) {
-      if (!str) return '';
-      return String(str).replace(/[&<>"']/g, function(m) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
-      });
-    }
-
-    window.addEventListener('DOMContentLoaded', init);
-  </script>
+  refresh()
+    .then(() => {
+      connect();
+      if (!state.data.config.onboarded) openDialog('setup');
+    })
+    .catch((e) => {
+      document.querySelector('.content').innerHTML = `<div class="banner err"><span>⚠️</span><span>Couldn't load AgentMesh: ${esc(e.message)}. Reload this page, or restart AgentMesh.</span></div>`;
+    });
+})();
+</script>
 </body>
 </html>

@@ -80,10 +80,17 @@ export class GitCoordinator {
     }
   }
 
+  /**
+   * Commits modifications to files git already tracks. Untracked files are never
+   * staged, so a stray .env or scratch file can't end up in history.
+   */
   public commitCheckpoint(taskId: string, fromAgent: AgentId, toAgent: AgentId): string | null {
     try {
-      // Stage changed files
-      cp.spawnSync('git', ['add', '-A'], { cwd: this.workspaceRoot });
+      const addRes = cp.spawnSync('git', ['add', '-u'], { cwd: this.workspaceRoot });
+      if (addRes.status !== 0) return null;
+
+      const staged = cp.spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: this.workspaceRoot });
+      if (staged.status === 0) return null;
 
       const message = `[agentmesh] handoff: ${fromAgent} -> ${toAgent} (${taskId})`;
       const commitRes = cp.spawnSync('git', ['commit', '-m', message], {

@@ -11,6 +11,8 @@ import { OllamaAdapter } from '../adapters/ollama-adapter.js';
 import { BaseAdapter, AdapterExecutionResult } from '../adapters/base-adapter.js';
 import { AgentId } from '../types.js';
 
+process.env.AGENTMESH_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'agentmesh-home-'));
+
 class MockSubscriptionAdapter extends BaseAdapter {
   readonly id: AgentId;
   readonly name: string;
@@ -24,7 +26,7 @@ class MockSubscriptionAdapter extends BaseAdapter {
     this.command = id;
   }
 
-  isAvailable() {
+  override async isAvailable() {
     return { available: true, version: '1.0.0-mock' };
   }
 
@@ -95,33 +97,36 @@ test('Embedded UI server serves dashboard and API endpoints', async () => {
   const instance = await startUiServer(testPort, tmpDir, true);
 
   try {
-    // 1. Test HTML Dashboard
+    const auth = { 'Content-Type': 'application/json', 'x-agentmesh-token': instance.token };
+
+    // 1. Dashboard HTML carries this launch's token
     const htmlRes = await fetch(`http://localhost:${testPort}/`);
     assert.strictEqual(htmlRes.status, 200);
     const html = await htmlRes.text();
-    assert.ok(html.includes('AgentMesh — Fleet Command Center'));
-    assert.ok(html.includes('Rate-Limit Cooldown'));
+    assert.ok(html.includes(instance.token), 'token injected into page');
+    assert.ok(!html.includes('__AGENTMESH_TOKEN__'));
 
-    // 2. Test API Status
-    const statusRes = await fetch(`http://localhost:${testPort}/api/status`);
-    assert.strictEqual(statusRes.status, 200);
-    const statusData = (await statusRes.json()) as any;
-    assert.strictEqual(statusData.safeMode, true);
-    assert.ok(Array.isArray(statusData.agents));
+    // 2. State
+    const stateRes = await fetch(`http://localhost:${testPort}/api/state`, { headers: auth });
+    assert.strictEqual(stateRes.status, 200);
+    const stateData = (await stateRes.json()) as any;
+    assert.strictEqual(stateData.safeMode, true);
+    assert.ok(Array.isArray(stateData.agents));
+    assert.strictEqual(stateData.workspace, tmpDir);
 
-    // 3. Test API Toggle Mode
+    // 3. Toggle mode
     const modeRes = await fetch(`http://localhost:${testPort}/api/mode`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: auth,
       body: JSON.stringify({ safeMode: false })
     });
     const modeData = (await modeRes.json()) as any;
     assert.strictEqual(modeData.safeMode, false);
 
-    // 4. Test API Reset Cooldown
+    // 4. Reset cooldown
     const resetRes = await fetch(`http://localhost:${testPort}/api/reset-cooldown`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: auth,
       body: JSON.stringify({ agentId: 'claude' })
     });
     assert.strictEqual(resetRes.status, 200);
@@ -134,7 +139,7 @@ test('Embedded UI server serves dashboard and API endpoints', async () => {
 test('Live Local Ollama test execution (Zero subscriptions used)', async () => {
   // Uses local Ollama model llama3.2:1b verified installed on the system
   const ollama = new OllamaAdapter('http://127.0.0.1:11434', 'llama3.2:1b');
-  const res = await ollama.execute('Respond with the word OK', 60_000);
+  const res = await ollama.execute('Respond with the word OK', { timeoutMs: 60_000 });
 
   // If Ollama daemon is responsive, assert output
   if (res.success) {

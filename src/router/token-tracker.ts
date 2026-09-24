@@ -19,7 +19,6 @@ export interface TokenUsageReport {
     model: string;
     tokensUsedToday: number;
     activeThreads: number;
-    latestThreadTitle?: string;
     latestUpdateMs?: number;
   };
   ollamaLiveStats?: {
@@ -28,9 +27,20 @@ export interface TokenUsageReport {
   };
 }
 
+const STATS_TTL_MS = 60_000;
+
 export class TokenTracker {
   private workspaceRoot: string;
   private sessionTokens: Map<AgentId, number> = new Map();
+  private statsCache = new Map<string, { at: number; value: unknown }>();
+
+  private cached<T>(key: string, compute: () => T): T {
+    const hit = this.statsCache.get(key);
+    if (hit && Date.now() - hit.at < STATS_TTL_MS) return hit.value as T;
+    const value = compute();
+    this.statsCache.set(key, { at: Date.now(), value });
+    return value;
+  }
 
   constructor(workspaceRoot = process.cwd()) {
     this.workspaceRoot = workspaceRoot;
@@ -54,6 +64,10 @@ export class TokenTracker {
    * and ~/.claude/stats-cache.json.
    */
   public readClaudeStats(): TokenUsageReport['claudeLiveStats'] | undefined {
+    return this.cached('claude', () => this.readClaudeStatsUncached());
+  }
+
+  private readClaudeStatsUncached(): TokenUsageReport['claudeLiveStats'] | undefined {
     const claudeDir = path.join(os.homedir(), '.claude');
     const projectsDir = path.join(claudeDir, 'projects');
 
@@ -63,10 +77,12 @@ export class TokenTracker {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
 
-        let liveInput = 0;
-        let liveOutput = 0;
-        let liveCacheRead = 0;
         let foundTodayFiles = false;
+        // Claude Code logs one line per content block, each repeating the message's usage;
+        // the last line for a message carries the final counts.
+        type Usage = { input_tokens?: number; cache_creation_input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number };
+        const byMessage = new Map<string, Usage>();
+        let anonymous = 0;
 
         const walk = (dir: string) => {
           for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -87,9 +103,7 @@ export class TokenTracker {
 
                     const usage = obj.message?.usage || obj.usage;
                     if (usage) {
-                      liveInput += usage.input_tokens || 0;
-                      liveOutput += usage.output_tokens || 0;
-                      liveCacheRead += usage.cache_read_input_tokens || 0;
+                      byMessage.set(obj.message?.id || `anon-${anonymous++}`, usage);
                     }
                   } catch {}
                 }
@@ -99,6 +113,15 @@ export class TokenTracker {
         };
 
         walk(projectsDir);
+
+        let liveInput = 0;
+        let liveOutput = 0;
+        let liveCacheRead = 0;
+        for (const u of byMessage.values()) {
+          liveInput += (u.input_tokens || 0) + (u.cache_creation_input_tokens || 0);
+          liveOutput += u.output_tokens || 0;
+          liveCacheRead += u.cache_read_input_tokens || 0;
+        }
 
         if (foundTodayFiles && (liveInput > 0 || liveOutput > 0)) {
           return {
@@ -156,6 +179,10 @@ export class TokenTracker {
    * (~/.codex/state_5.sqlite).
    */
   public readCodexStats(): TokenUsageReport['codexLiveStats'] | undefined {
+    return this.cached('codex', () => this.readCodexStatsUncached());
+  }
+
+  private readCodexStatsUncached(): TokenUsageReport['codexLiveStats'] | undefined {
     try {
       const codexDb = path.join(os.homedir(), '.codex', 'state_5.sqlite');
       if (!fs.existsSync(codexDb)) return undefined;
@@ -164,7 +191,7 @@ export class TokenTracker {
       const db = new DatabaseSync(codexDb, { readOnly: true });
 
       const todayStartMs = new Date().setHours(0, 0, 0, 0);
-      const stmt = db.prepare('SELECT id, title, model, tokens_used, updated_at_ms FROM threads WHERE updated_at_ms >= ? ORDER BY updated_at_ms DESC');
+      const stmt = db.prepare('SELECT id, model, tokens_used, updated_at_ms FROM threads WHERE updated_at_ms >= ? ORDER BY updated_at_ms DESC');
       const rows = stmt.all(todayStartMs) as any[];
       db.close();
 
@@ -176,10 +203,9 @@ export class TokenTracker {
       }
 
       return {
-        model: rows[0]?.model || 'gpt-6-astra',
+        model: rows[0]?.model || 'unknown',
         tokensUsedToday,
         activeThreads: rows.length,
-        latestThreadTitle: rows[0]?.title ? String(rows[0].title).split('\n')[0].slice(0, 80) : undefined,
         latestUpdateMs: rows[0]?.updated_at_ms
       };
     } catch {

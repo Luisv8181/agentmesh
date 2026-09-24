@@ -5,14 +5,12 @@ import { AgentId, HandoffRecord, TaskState, TaskStatus } from '../types.js';
 
 export class TaskStore {
   private baseDir: string;
+  private workspaceRoot: string;
 
+  /** The .agentmesh folder is only created when a task is first saved, so browsing a folder leaves no trace. */
   constructor(workspaceRoot = process.cwd()) {
+    this.workspaceRoot = workspaceRoot;
     this.baseDir = path.join(workspaceRoot, '.agentmesh');
-    if (!fs.existsSync(this.baseDir)) {
-      try {
-        fs.mkdirSync(path.join(this.baseDir, 'tasks'), { recursive: true });
-      } catch {}
-    }
   }
 
   public createTask(title: string, requirements: string[], acceptanceCriteria: string[] = []): TaskState {
@@ -25,7 +23,7 @@ export class TaskStore {
       acceptanceCriteria,
       filesChanged: [],
       handoffs: [],
-      workspaceRoot: process.cwd(),
+      workspaceRoot: this.workspaceRoot,
       createdAt: Date.now(),
       updatedAt: Date.now()
     };
@@ -36,6 +34,7 @@ export class TaskStore {
   }
 
   public getTask(taskId: string): TaskState | null {
+    if (!/^task-[a-z0-9-]+$/i.test(taskId)) return null;
     const filePath = path.join(this.baseDir, 'tasks', `${taskId}.json`);
     if (fs.existsSync(filePath)) {
       try {
@@ -51,7 +50,8 @@ export class TaskStore {
       try {
         const { currentTaskId } = JSON.parse(fs.readFileSync(currentIdPath, 'utf8'));
         if (currentTaskId) {
-          return this.getTask(currentTaskId);
+          const task = this.getTask(currentTaskId);
+          return task && task.status !== 'completed' ? task : null;
         }
       } catch {}
     }
@@ -60,6 +60,7 @@ export class TaskStore {
 
   public setCurrentTaskId(taskId: string): void {
     const currentIdPath = path.join(this.baseDir, 'current-task.json');
+    fs.mkdirSync(this.baseDir, { recursive: true });
     fs.writeFileSync(currentIdPath, JSON.stringify({ currentTaskId: taskId }, null, 2), 'utf8');
   }
 
@@ -83,6 +84,21 @@ export class TaskStore {
   public updateTaskStatus(task: TaskState, status: TaskStatus): void {
     task.status = status;
     this.saveTask(task);
+  }
+
+  public clearCurrentTask(): void {
+    const currentIdPath = path.join(this.baseDir, 'current-task.json');
+    try { fs.rmSync(currentIdPath, { force: true }); } catch {}
+  }
+
+  /** Marks a task done. A finished task is never the "current" one, so the next instruction starts fresh. */
+  public completeTask(taskId: string): TaskState | null {
+    const task = this.getTask(taskId);
+    if (!task) return null;
+    task.status = 'completed';
+    this.saveTask(task);
+    if (this.getCurrentTask()?.taskId === taskId) this.clearCurrentTask();
+    return task;
   }
 
   public listTasks(): TaskState[] {
