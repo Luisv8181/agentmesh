@@ -350,6 +350,11 @@
       </div>
     </div>
     <div>
+      <div class="section-title">Models. Leave blank to use each agent's own default. Useful when a default model needs credits your plan doesn't include (e.g. Claude: sonnet or opus).</div>
+      <div class="kv" id="models"></div>
+      <div style="margin-top:8px"><button class="btn" data-action="save-models">Save models</button></div>
+    </div>
+    <div>
       <div class="section-title">Local model for Ollama</div>
       <div class="row"><input class="text" id="set-model" placeholder="qwen2.5:7b"><button class="btn" data-action="save-model">Save</button></div>
     </div>
@@ -441,7 +446,7 @@
     if (a.priority === null) return { cls: 'off', label: 'Turned off' };
     if (!a.available) return { cls: 'off', label: a.detail && a.id === 'ollama' && a.detail.startsWith('Model') ? 'Needs model' : 'Not set up' };
     if (d.safeMode && a.subscription) return { cls: '', label: 'Paused (free mode)' };
-    if (a.hint) return { cls: 'err', label: /sign in/i.test(a.hint) ? 'Needs sign-in' : /out of date/i.test(a.hint) ? 'Needs update' : 'Needs attention' };
+    if (a.hint) return { cls: 'err', label: /usage credits/i.test(a.hint) ? 'Out of credits' : /sign in/i.test(a.hint) ? 'Needs sign-in' : /out of date/i.test(a.hint) ? 'Needs update' : 'Needs attention' };
     if (a.inCooldown && a.cooldownUntil) return { cls: 'warn', label: `Resting ${fmtLeft(a.cooldownUntil)}`, cooldown: true };
     return { cls: 'ok', label: 'Ready' };
   }
@@ -718,6 +723,9 @@
     $('#set-edit').checked = d.config.permission === 'edit';
     $('#set-commit').checked = d.config.autoCommit;
     $('#set-model').value = d.config.ollamaModel;
+    $('#models').innerHTML = d.agents.filter((a) => a.id !== 'ollama').map((a) =>
+      `<div style="align-self:center">${esc(a.name)}</div><input class="text" style="width:180px" data-model-for="${a.id}" placeholder="agent default" value="${esc(d.config.models?.[a.id] || '')}">`
+    ).join('');
     const u = d.usage || {};
     const n = (x) => Number(x || 0).toLocaleString();
     $('#usage').innerHTML =
@@ -888,6 +896,12 @@
       const pr = state.data.config.priority.filter((x) => x !== el.dataset.agent);
       if (el.checked) pr.push(el.dataset.agent);
       return saveConfig({ priority: pr });
+    }),
+    'save-models': () => act(async () => {
+      const models = {};
+      document.querySelectorAll('[data-model-for]').forEach((el) => { if (el.value.trim()) models[el.dataset.modelFor] = el.value.trim(); });
+      await saveConfig({ models });
+      toast('Models saved.');
     }),
     'save-model': () => act(async () => { await saveConfig({ ollamaModel: $('#set-model').value.trim() }); toast('Saved.'); })
   };

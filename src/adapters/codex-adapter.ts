@@ -8,6 +8,6 @@ export class CodexAdapter extends BaseAdapter {
 
   async execute(prompt: string, opts: ExecuteOptions = {}): Promise<AdapterExecutionResult> {
     const sandbox = opts.permission === 'readonly' ? 'read-only' : 'workspace-write';
-    return this.runProcess(['exec', '--skip-git-repo-check', '-s', sandbox, '-'], { ...opts, input: prompt });
+    return this.runProcess(['exec', '--skip-git-repo-check', '-s', sandbox, ...(opts.model ? ['-m', opts.model] : []), '-'], { ...opts, input: prompt });
   }
 }

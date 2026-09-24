@@ -275,6 +275,7 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
       if (body.permission === 'edit' || body.permission === 'readonly') patch.permission = body.permission;
       if (typeof body.ollamaModel === 'string') patch.ollamaModel = body.ollamaModel;
       if (typeof body.onboarded === 'boolean') patch.onboarded = body.onboarded;
+      if (body.models && typeof body.models === 'object') patch.models = body.models;
       const updated = config.update(patch);
       selector.reloadConfig();
       if (patch.ollamaModel) await selector.getStatuses(true);

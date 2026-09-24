@@ -15,6 +15,8 @@ export interface ExecuteOptions {
   cwd?: string;
   /** 'edit' lets the agent change files; 'readonly' asks it to only read and answer. */
   permission?: 'edit' | 'readonly';
+  /** Model override for this run; omitted means the CLI's own default. */
+  model?: string;
   onOutput?: (chunk: string) => void;
   signal?: AbortSignal;
 }

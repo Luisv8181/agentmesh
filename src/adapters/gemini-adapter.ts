@@ -8,6 +8,6 @@ export class GeminiAdapter extends BaseAdapter {
 
   async execute(prompt: string, opts: ExecuteOptions = {}): Promise<AdapterExecutionResult> {
     const mode = opts.permission === 'readonly' ? 'plan' : 'auto_edit';
-    return this.runProcess(['--skip-trust', '--approval-mode', mode, '-p', prompt], opts);
+    return this.runProcess(['--skip-trust', '--approval-mode', mode, ...(opts.model ? ['-m', opts.model] : []), '-p', prompt], opts);
   }
 }

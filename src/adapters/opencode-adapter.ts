@@ -7,6 +7,6 @@ export class OpenCodeAdapter extends BaseAdapter {
   readonly command = 'opencode';
 
   async execute(prompt: string, opts: ExecuteOptions = {}): Promise<AdapterExecutionResult> {
-    return this.runProcess(['run', prompt], opts);
+    return this.runProcess(['run', ...(opts.model ? ['-m', opts.model] : []), prompt], opts);
   }
 }

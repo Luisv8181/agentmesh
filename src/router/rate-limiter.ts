@@ -24,6 +24,8 @@ const RATE_LIMIT_REGEXES = [
   /quota\s*exceeded/i,
   /usage\s*limit/i,
   /insufficient\s*credits/i,
+  /out\s*of\s*(usage\s*)?credits/i,
+  /requires\s*usage\s*credits/i,
   /credit\s*balance/i,
   /capacity\s*exceeded/i,
   /model\s*is\s*currently\s*overloaded/i,

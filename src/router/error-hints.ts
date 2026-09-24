@@ -13,8 +13,20 @@ export function keyErrorLine(raw: string, max = 400): string {
   return pick.length > max ? `${pick.slice(0, max)}…` : pick;
 }
 
+const SIGN_IN: Record<string, string> = {
+  claude: 'claude auth login',
+  codex: 'codex login',
+  agy: 'agy',
+  gemini: 'gemini',
+  opencode: 'opencode (then type /connect)'
+};
+
 export function fixHint(agentId: string, agentName: string, raw: string): string | null {
-  const cmd = agentId === 'agy' ? 'agy' : agentId;
+  const cmd = SIGN_IN[agentId] ?? agentId;
+  if (/out of (usage )?credits|requires usage credits/i.test(raw)) {
+    const example = agentId === 'claude' ? ' (for example sonnet or opus)' : '';
+    return `${agentName} is out of usage credits for the model it's set to use. In Settings → Models, pick a model your plan includes${example}, or wait for the credits to reset.`;
+  }
   if (/requires a newer version|upgrade to the latest|please update|version is no longer supported/i.test(raw)) {
     return `${agentName} is out of date. Update it with its install command (Set up agents shows it), then press Check again.`;
   }
@@ -30,7 +42,7 @@ export function fixHint(agentId: string, agentName: string, raw: string): string
     return `${agentName} tried an action that needs your approval, which can't be asked for here. Try rephrasing the request so it only edits files.`;
   }
   if (/(oauth|access) token (has )?expired|re-?authenticate|not logged in|please (log|sign) ?in|login required|invalid api key/i.test(raw)) {
-    return `${agentName} needs you to sign in again: open PowerShell, type ${cmd}, and follow the sign-in steps.`;
+    return `${agentName} needs you to sign in again from the command line (signing in to the app isn't enough): open PowerShell, type ${cmd}, and follow the sign-in steps.`;
   }
   return null;
 }

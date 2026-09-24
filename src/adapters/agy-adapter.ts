@@ -12,6 +12,6 @@ export class AgyAdapter extends BaseAdapter {
     // writes into its private scratch folder instead of the project.
     const workspace = opts.cwd ? ['--add-dir', opts.cwd] : [];
     // agy parses Go-style flags: all flags must come before the prompt.
-    return this.runProcess(['--mode', mode, ...workspace, '-p', prompt], opts);
+    return this.runProcess(['--mode', mode, ...workspace, ...(opts.model ? ['--model', opts.model] : []), '-p', prompt], opts);
   }
 }

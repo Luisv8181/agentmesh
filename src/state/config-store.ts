@@ -13,6 +13,8 @@ export interface AgentMeshConfig {
   /** 'edit' lets agents change files in the project; 'readonly' only lets them read and answer. */
   permission: 'edit' | 'readonly';
   ollamaModel: string;
+  /** Per-agent model override passed as --model; empty means the CLI's own default. */
+  models: Partial<Record<AgentId, string>>;
   recentWorkspaces: string[];
   onboarded: boolean;
 }
@@ -22,6 +24,7 @@ export const DEFAULT_CONFIG: AgentMeshConfig = {
   autoCommit: false,
   permission: 'edit',
   ollamaModel: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
+  models: {},
   recentWorkspaces: [],
   onboarded: false
 };
@@ -51,7 +54,7 @@ export class ConfigStore {
   }
 
   get(): AgentMeshConfig {
-    return { ...this.config, priority: [...this.config.priority], recentWorkspaces: [...this.config.recentWorkspaces] };
+    return { ...this.config, priority: [...this.config.priority], models: { ...this.config.models }, recentWorkspaces: [...this.config.recentWorkspaces] };
   }
 
   update(patch: Partial<AgentMeshConfig>): AgentMeshConfig {
@@ -75,6 +78,11 @@ function sanitize(c: AgentMeshConfig): AgentMeshConfig {
     autoCommit: c.autoCommit === true,
     permission: c.permission === 'readonly' ? 'readonly' : 'edit',
     ollamaModel: typeof c.ollamaModel === 'string' && c.ollamaModel.trim() ? c.ollamaModel.trim() : DEFAULT_CONFIG.ollamaModel,
+    models: Object.fromEntries(
+      Object.entries(c.models && typeof c.models === 'object' ? c.models : {})
+        .filter(([id, m]) => ALL_AGENTS.includes(id as AgentId) && id !== 'ollama' && typeof m === 'string' && /^\w[\w.:\/\[\]-]{0,99}$/.test(m.trim()))
+        .map(([id, m]) => [id, (m as string).trim()])
+    ),
     recentWorkspaces: Array.isArray(c.recentWorkspaces) ? c.recentWorkspaces.filter((d) => typeof d === 'string') : [],
     onboarded: c.onboarded === true
   };

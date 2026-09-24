@@ -143,7 +143,7 @@ export class AgentSelector {
       );
     }
 
-    const { autoCommit, permission } = this.config.get();
+    const { autoCommit, permission, models } = this.config.get();
     const queue = this.resolveQueue(forcedAgent, task.currentAgent);
     const before = snapshotFiles(this.workspaceRoot);
     const handoffs: WorkExecutionResult['handoffs'] = [];
@@ -188,6 +188,7 @@ export class AgentSelector {
       const result = await adapter.execute(prompt, {
         cwd: this.workspaceRoot,
         permission,
+        model: models[agentId],
         signal: hooks.signal,
         onOutput: hooks.onOutput ? (chunk) => hooks.onOutput!(agentId, chunk) : undefined
       });

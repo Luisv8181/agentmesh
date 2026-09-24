@@ -78,3 +78,6 @@ To run a command:
 | The page says "Lost connection" | The black window was closed. Double-click **Start AgentMesh** again. |
 | An assistant still says **Not set up** after installing | Close and reopen PowerShell, run the sign-in step, then press **Check again**. |
 | "No agent could finish this" | The message lists why for each assistant. Usually one needs setting up or is resting after a limit. |
+| An assistant says **Needs sign-in** even though you signed in | Signing in to the desktop app doesn't count. Sign in from PowerShell: `claude auth login` (Claude) or `codex login` (Codex). |
+| An assistant says **Needs update** | Run its install command again from **Set up agents**, then press **Check again**. |
+| An assistant says **Out of credits** | Its default model needs credits your plan doesn't include. In **Settings → Models**, type a model your plan covers (for Claude: `sonnet` or `opus`). |

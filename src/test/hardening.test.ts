@@ -324,7 +324,7 @@ test('Real CLI failures are reduced to the line that matters, with a plain-langu
 
   assert.match(keyErrorLine(codex), /requires a newer version of Codex/);
   assert.match(keyErrorLine(gemini), /no longer supported/);
-  assert.match(fixHint('claude', 'Claude Code', claude) ?? '', /sign in again: open PowerShell, type claude/);
+  assert.match(fixHint('claude', 'Claude Code', claude) ?? '', /sign in again.*type claude auth login/);
   assert.match(fixHint('codex', 'OpenAI Codex', codex) ?? '', /out of date/);
   assert.match(fixHint('gemini', 'Google Gemini', gemini) ?? '', /Antigravity/);
   assert.match(fixHint('agy', 'Google Antigravity', agy) ?? '', /needs your approval/);
@@ -370,4 +370,24 @@ test('Dashboard script parses (a syntax error blanks the whole page)', async () 
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
   assert.ok(scripts.length > 0);
   for (const code of scripts) assert.doesNotThrow(() => new vm.Script(code));
+});
+
+test('Per-agent model is passed as --model, and a value that looks like a flag is refused', async () => {
+  installFakeCli('claude');
+  const res = await new ClaudeAdapter().execute('hi', { timeoutMs: 20_000, model: 'sonnet' });
+  assert.deepStrictEqual(JSON.parse(res.output).args, ['-p', '--permission-mode', 'acceptEdits', '--model', 'sonnet']);
+
+  const cfg = freshConfig({ models: { claude: 'sonnet', codex: '--dangerously-bypass-approvals-and-sandbox', ollama: 'x' } });
+  assert.deepStrictEqual(cfg.get().models, { claude: 'sonnet' });
+});
+
+test('"Out of usage credits" counts as a quota limit with a model-switch hint', async () => {
+  const { RateLimiter } = await import('../router/rate-limiter.js');
+  const { fixHint } = await import('../router/error-hints.js');
+  // Captured from real Claude Code runs on 2026-09-24.
+  const raw = "You're out of usage credits. Switch to another model, or manage usage credits at claude.ai/settings/usage?from=cc_cli_limit_message, to continue.";
+  const rl = new RateLimiter(fs.mkdtempSync(path.join(os.tmpdir(), 'agentmesh-rl-credits-')));
+  assert.strictEqual(rl.isRateLimit(raw), true);
+  assert.strictEqual(rl.isRateLimit('API Error: Fable 5 requires usage credits. Update Claude Code to the latest version to learn more'), true);
+  assert.match(fixHint('claude', 'Claude Code', raw) ?? '', /Settings → Models.*sonnet or opus/);
 });
