@@ -11,6 +11,8 @@ import { ConfigStore, AgentMeshConfig, ALL_AGENTS } from '../state/config-store.
 import { globalUsageMonitor } from '../router/usage-monitor.js';
 import { globalTokenTracker } from '../router/token-tracker.js';
 import { clearResolveCache, refreshPathFromSystem } from '../adapters/resolve-command.js';
+import { BatonStore } from '../baton/baton-store.js';
+import { PROTOCOL_TEXT, SITE_INFO, WEB_SITES, WebSite } from '../baton/protocol.js';
 import { AgentId, HandoffReason, RouteDecision, WorkExecutionResult } from '../types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -297,6 +299,56 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
       return { agents: await selector.getStatuses(true) };
     }
 
+    // ---- Web-AI baton (ChatGPT / Claude / Gemini relay) ----
+    const baton = new BatonStore(selector.workspaceRoot);
+    const site = (v: unknown): WebSite => {
+      if (typeof v === 'string' && (WEB_SITES as string[]).includes(v)) return v as WebSite;
+      throw new HttpError(400, 'Unknown site');
+    };
+
+    if (m === 'GET' && p === '/api/baton') {
+      const data = baton.get();
+      return {
+        protocol: PROTOCOL_TEXT,
+        sites: SITE_INFO,
+        knowledge: baton.knowledge(),
+        briefs: data.briefs.slice().reverse()
+      };
+    }
+    if (m === 'POST' && p === '/api/baton/brief') {
+      const body = await readJson(req);
+      if (typeof body.text !== 'string' || !body.text.trim()) throw new HttpError(400, 'Paste the reply you got after typing "mesh wrap".');
+      return baton.addBrief(site(body.from), body.text.slice(0, 60_000));
+    }
+    if (m === 'POST' && p === '/api/baton/continue') {
+      const body = await readJson(req);
+      return baton.continueOn(site(body.to));
+    }
+    if (m === 'POST' && p === '/api/baton/pass') {
+      const body = await readJson(req);
+      const files = Array.isArray(body.files) ? body.files.filter((f: unknown): f is string => typeof f === 'string') : [];
+      baton.recordPass(site(body.to), files.filter((f) => !f.includes('..')));
+      return { knowledge: baton.knowledge() };
+    }
+    if (m === 'POST' && p === '/api/baton/protocol') {
+      const body = await readJson(req);
+      baton.setProtocolInstalled(site(body.site), body.installed === true);
+      return { knowledge: baton.knowledge() };
+    }
+    if (m === 'POST' && p === '/api/baton/file') {
+      // A file downloaded from an AI website, dropped into the dashboard: saved into the project's from-ai/ folder.
+      const body = await readJson(req, 15_000_000);
+      const name = typeof body.name === 'string' ? path.basename(body.name).replace(/[<>:"|?*\x00-\x1f]/g, '_').slice(0, 120) : '';
+      if (!name || name.startsWith('.')) throw new HttpError(400, 'Invalid file name');
+      if (typeof body.base64 !== 'string') throw new HttpError(400, 'Missing file content');
+      const dir = path.join(selector.workspaceRoot, 'from-ai');
+      fs.mkdirSync(dir, { recursive: true });
+      let target = path.join(dir, name);
+      for (let i = 2; fs.existsSync(target); i++) target = path.join(dir, name.replace(/(\.[^.]*)?$/, ` (${i})$1`));
+      fs.writeFileSync(target, Buffer.from(body.base64, 'base64'));
+      return { saved: path.relative(selector.workspaceRoot, target).split(path.sep).join('/') };
+    }
+
     if (m === 'POST' && p === '/api/workspace/open') {
       const opener = process.platform === 'win32' ? 'explorer.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
       cp.spawn(opener, [selector.workspaceRoot], { stdio: 'ignore', detached: true }).unref();
@@ -436,12 +488,12 @@ function titleFrom(instruction: string): string {
   return firstLine.length > 60 ? `${firstLine.slice(0, 57)}…` : firstLine;
 }
 
-function readJson(req: http.IncomingMessage): Promise<Record<string, any>> {
+function readJson(req: http.IncomingMessage, maxBytes = MAX_BODY_BYTES): Promise<Record<string, any>> {
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', (chunk) => {
       body += chunk;
-      if (body.length > MAX_BODY_BYTES) {
+      if (body.length > maxBytes) {
         reject(new HttpError(413, 'Request too large'));
         req.destroy();
       }

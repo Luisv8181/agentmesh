@@ -62,6 +62,21 @@ To run a command:
    For something unrelated, click **+ New** in the left sidebar first.
 6. When you're happy with a task, click **Mark task finished**.
 
+## Using ChatGPT, Claude and Gemini together (free)
+
+When you work on something in an AI website and it runs out of free messages, you can carry on in another one without explaining everything again.
+
+**One time:** in AgentMesh, open **🔁 AI websites** and copy the short "magic words" text into each site's settings (the screen shows exactly where). You only do this once per site.
+
+**Each time you switch:**
+
+1. In the site you're leaving, type **`mesh wrap`**. It replies with a handoff note. Copy the whole reply.
+2. In AgentMesh (🔁 AI websites), choose *from* and *to*, paste the note, and click **Save the note**.
+3. Copy the message AgentMesh gives you, open the next site, paste it, and attach the files it lists (use the site's paperclip button).
+4. Click **Done, I pasted it**. AgentMesh remembers what each site has seen, so next time it only asks you to attach files that are new or changed.
+
+If you use Antigravity, you can also just tell it "I'm switching from ChatGPT to Claude": it knows these steps and prepares everything for you. Files an AI gives you can be dropped onto the 🔁 screen; they're saved into a `from-ai` folder in your project.
+
 ## Good to know
 
 - **Free local mode** (switch at the top right) uses only Ollama, which runs on your own computer. Your paid subscriptions are never touched in this mode. Ollama can read your project and suggest changes, but it can't edit files itself.

@@ -16,6 +16,7 @@ import { globalUsageMonitor } from './usage-monitor.js';
 import { globalTokenTracker } from './token-tracker.js';
 import { keyErrorLine, fixHint } from './error-hints.js';
 import { classify, Classification } from './task-classifier.js';
+import { BatonStore } from '../baton/baton-store.js';
 import {
   AgentId,
   AgentStatus,
@@ -302,6 +303,12 @@ export class AgentSelector {
         `[AgentMesh Task]\nTask: ${task.title}\nOverall goal (set when the task was created):\n` +
           task.requirements.map((r, i) => `  ${i + 1}. ${r}`).join('\n')
       );
+    }
+
+    // Work done in the person's AI chats (ChatGPT/Claude/Gemini), carried over with "mesh wrap".
+    const brief = new BatonStore(this.workspaceRoot).latestBrief();
+    if (brief) {
+      parts.push(`[Latest project brief from the person's AI chats, ${new Date(brief.at).toISOString().slice(0, 10)}]\n${brief.text.slice(0, 4000)}`);
     }
 
     const recent = (task.runs || []).filter((r) => r.success).slice(-3);

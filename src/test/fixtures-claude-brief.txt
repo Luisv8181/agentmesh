@@ -1,0 +1,28 @@
+=== MESH BRIEF ===
+Project:
+Rosa's Bakery website
+
+Goal:
+Simple website with menu and an order form
+
+Decisions:
+- Plain HTML/CSS, no framework
+- Order form submissions go to orders@rosasbakery.com
+
+Done:
+- Updated index.html with a menu section
+- New styles.css with warm color scheme
+
+Open questions:
+(none yet)
+
+Next steps:
+- Add opening hours to the site
+
+Key files:
+index.html
+styles.css
+
+Code to carry over:
+see Key files
+=== END MESH BRIEF ===

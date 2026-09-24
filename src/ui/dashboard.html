@@ -232,6 +232,7 @@
     </nav>
 
     <div class="sidebar-foot">
+      <button class="nav-btn" data-action="open-baton">🔁 AI websites (ChatGPT, Claude, Gemini)</button>
       <button class="nav-btn" data-action="open-setup">🧰 Set up agents</button>
       <button class="nav-btn" data-action="open-settings">⚙️ Settings</button>
       <button class="nav-btn" data-action="open-activity">📜 Activity log</button>
@@ -365,6 +366,66 @@
       <div class="kv" id="usage"></div>
     </div>
     <div class="row"><button class="btn" data-action="reset-all">Let all resting agents try again now</button></div>
+  </div>
+</dialog>
+
+<!-- AI websites (baton) dialog -->
+<dialog id="dlg-baton" aria-labelledby="dlg-baton-title" style="width:min(760px, calc(100vw - 32px))">
+  <div class="dlg-head"><h2 id="dlg-baton-title">AI websites: pass the baton</h2><span class="spacer"></span><button class="btn sm ghost" data-close>Close</button></div>
+  <div class="dlg-body">
+    <p class="muted" style="margin:0">Work on this project in ChatGPT, Claude and Gemini. When one runs out of free messages, pass the baton: the next one picks up exactly where you left off. AgentMesh keeps track of what each site knows.</p>
+
+    <details id="baton-setup" class="hist">
+      <summary><b style="flex:1">One-time setup: teach each site the two magic words</b><span class="small muted" id="baton-setup-state"></span></summary>
+      <div class="h-body">
+        <p class="small" style="margin:0 0 8px">Copy this and paste it into each site's settings. After that, <b>mesh wrap</b> makes a site write a handoff note, and <b>mesh start</b> lets the next site pick it up.</p>
+        <div class="cmd"><code id="baton-protocol" style="white-space:pre-wrap;max-height:160px;overflow:auto;display:block"></code><button class="btn sm" data-action="copy-protocol">Copy</button></div>
+        <div id="baton-sites-setup" style="margin-top:10px"></div>
+      </div>
+    </details>
+
+    <div>
+      <div class="section-title">What each site knows about this project</div>
+      <div id="baton-knowledge" class="checklist" style="gap:10px;align-items:stretch"></div>
+    </div>
+
+    <div class="card card-pad" style="box-shadow:none">
+      <div class="row" style="flex-wrap:wrap">
+        <b>Pass the baton from</b>
+        <select id="baton-from" class="plain"></select>
+        <b>to</b>
+        <select id="baton-to" class="plain"></select>
+      </div>
+      <ol class="steps" style="margin-top:12px">
+        <li>
+          In <b data-site-name="from"></b>, type <code>mesh wrap</code> and send it. Copy its whole reply and paste it here:
+          <textarea id="baton-brief" class="text" style="margin-top:6px;min-height:110px;font-family:var(--mono);font-size:12.5px" placeholder="=== MESH BRIEF === …"></textarea>
+          <div class="row" style="margin-top:6px"><button class="btn" data-action="baton-save">Save the note</button><button class="btn ghost sm" data-action="baton-skip">Nothing new there, skip</button><span class="small muted" id="baton-save-state"></span></div>
+        </li>
+        <li id="baton-step2" hidden>
+          Paste this into <b data-site-name="to"></b> as a new message<span id="baton-attach-hint"></span>:
+          <div class="cmd" style="align-items:flex-start"><code id="baton-message" style="white-space:pre-wrap;max-height:180px;overflow:auto;display:block"></code><button class="btn sm" data-action="baton-copy-message">Copy</button></div>
+          <div id="baton-files" style="margin-top:8px"></div>
+          <div class="row" style="margin-top:8px;flex-wrap:wrap">
+            <a class="btn" id="baton-open-site" target="_blank" rel="noopener">Open site ↗</a>
+            <button class="btn" data-action="open-folder">Open project folder</button>
+            <span class="spacer"></span>
+            <button class="btn primary" data-action="baton-passed">Done, I pasted it</button>
+          </div>
+        </li>
+      </ol>
+    </div>
+
+    <div>
+      <div class="section-title">Got a file from an AI site? Drop it here to save it into this project (in a <b>from-ai</b> folder).</div>
+      <div id="baton-drop" class="banner info" style="justify-content:center;border:1.5px dashed var(--border);cursor:pointer" tabindex="0" role="button">Drop files here, or click to choose</div>
+      <input type="file" id="baton-file-input" multiple hidden>
+    </div>
+
+    <div>
+      <div class="section-title">Handoff notes so far</div>
+      <div id="baton-briefs" class="history"></div>
+    </div>
   </div>
 </dialog>
 
@@ -751,6 +812,80 @@
     if ($('#dlg-settings').open) renderSettings();
   }
 
+  // ---------- AI websites (baton) ----------
+  const SITES = ['chatgpt', 'claude', 'gemini'];
+  async function loadBaton() {
+    state.baton = await api('/api/baton');
+    renderBaton();
+  }
+  function siteName(id) { return state.baton?.sites[id]?.name || id; }
+  function renderBaton() {
+    const b = state.baton;
+    if (!b) return;
+    $('#baton-protocol').textContent = b.protocol;
+    const installed = SITES.filter((s) => b.knowledge[s].protocolInstalled).length;
+    $('#baton-setup-state').textContent = `${installed} of 3 sites set up`;
+    if (installed < 3 && !$('#baton-setup').dataset.touched) $('#baton-setup').open = true;
+    $('#baton-sites-setup').innerHTML = SITES.map((s) => `<div class="row" style="padding:6px 0;border-top:1px solid var(--border)">
+      <label class="switch"><input type="checkbox" data-baton-protocol="${s}" ${b.knowledge[s].protocolInstalled ? 'checked' : ''}><span class="sr-only">Installed on ${esc(siteName(s))}</span></label>
+      <div style="flex:1"><b>${esc(siteName(s))}</b><div class="small muted">${esc(b.sites[s].where)}</div></div>
+      <a class="btn sm" href="${b.sites[s].url}" target="_blank" rel="noopener">Open ↗</a></div>`).join('');
+
+    $('#baton-knowledge').innerHTML = SITES.map((s) => {
+      const k = b.knowledge[s];
+      const dot = !k.protocolInstalled ? 'off' : k.upToDate ? 'ok' : 'warn';
+      return `<div class="agent-setup" style="flex:1;min-width:190px;margin:0"><div class="row"><span class="dot ${dot}"></span><b>${esc(siteName(s))}</b></div>
+        <div class="small muted" style="margin-top:4px">${esc(k.summary)}${k.protocolInstalled ? '' : ' Magic words not set up yet.'}</div></div>`;
+    }).join('');
+
+    const fromSel = $('#baton-from'), toSel = $('#baton-to');
+    if (!fromSel.options.length) {
+      const latestFrom = b.briefs[0]?.from;
+      fromSel.innerHTML = SITES.map((s) => `<option value="${s}">${esc(siteName(s))}</option>`).join('');
+      toSel.innerHTML = fromSel.innerHTML;
+      fromSel.value = SITES.includes(latestFrom) ? latestFrom : 'chatgpt';
+      toSel.value = SITES.find((s) => s !== fromSel.value);
+    }
+    updateBatonNames();
+
+    $('#baton-briefs').innerHTML = b.briefs.length ? b.briefs.map((br, i) => `<details class="hist">
+      <summary><span class="dot ${br.wellFormed ? 'ok' : 'warn'}"></span><span class="h-instr">${esc(br.project || 'Handoff note')} <span class="muted">from ${esc(siteName(br.from))}</span></span>
+      <span class="small muted">#${b.briefs.length - i} · ${fmtWhen(br.at)}</span></summary>
+      <div class="h-body"><div class="output live">${esc(br.text)}</div>
+      ${br.keyFiles.length ? `<div class="files">${br.keyFiles.map((f) => `<span class="file">${esc(f)}</span>`).join('')}</div>` : ''}</div></details>`).join('')
+      : '<p class="small muted" style="margin:0">None yet. The first time you type <b>mesh wrap</b> on a site and paste the reply above, it shows up here.</p>';
+  }
+  function updateBatonNames() {
+    document.querySelectorAll('[data-site-name="from"]').forEach((el) => { el.textContent = siteName($('#baton-from').value); });
+    document.querySelectorAll('[data-site-name="to"]').forEach((el) => { el.textContent = siteName($('#baton-to').value); });
+  }
+  async function showContinue() {
+    const to = $('#baton-to').value;
+    const next = await api('/api/baton/continue', { to });
+    state.batonNext = { to, ...next };
+    $('#baton-message').textContent = next.message;
+    $('#baton-open-site').href = state.baton.sites[to].url;
+    $('#baton-attach-hint').textContent = next.files.length ? ', and attach the files below' : '';
+    $('#baton-files').innerHTML = next.files.length
+      ? `<div class="small muted">Attach these (use the paperclip in ${esc(siteName(to))}):</div>` + next.files.map((f) =>
+          `<label class="row small" style="padding:3px 0"><input type="checkbox" data-baton-file="${esc(f.path)}" checked> <span class="file">${esc(f.path)}</span> <span class="muted">${esc(f.reason)}</span></label>`).join('')
+      : `<div class="small muted">${esc(siteName(to))} already has every file it needs.</div>`;
+    $('#baton-step2').hidden = false;
+  }
+  function uploadFiles(files) {
+    for (const file of files) {
+      if (file.size > 10_000_000) { toast(`${file.name} is over 10 MB; copy it into the project folder yourself.`, 'err'); continue; }
+      const reader = new FileReader();
+      reader.onload = () => act(async () => {
+        const base64 = String(reader.result).split(',')[1] || '';
+        const r = await api('/api/baton/file', { name: file.name, base64 });
+        toast(`Saved to ${r.saved}`);
+        if (state.batonNext) await showContinue();
+      });
+      reader.readAsDataURL(file);
+    }
+  }
+
   // ---------- Activity ----------
   const EVENT_TEXT = {
     request_start: (e) => `${agentName(e.agentId)} started working`,
@@ -841,12 +976,13 @@
     }
   }
 
-  const dialogs = { project: '#dlg-project', setup: '#dlg-setup', settings: '#dlg-settings', activity: '#dlg-activity' };
+  const dialogs = { baton: '#dlg-baton', project: '#dlg-project', setup: '#dlg-setup', settings: '#dlg-settings', activity: '#dlg-activity' };
   function openDialog(name) {
     closeDrawer();
     if (name === 'setup') renderSetup();
     if (name === 'settings') renderSettings();
     if (name === 'activity') renderActivity();
+    if (name === 'baton') { $('#baton-step2').hidden = true; state.batonNext = null; loadBaton().catch((e) => toast(e.message, 'err')); }
     if (name === 'project') {
       const recent = (state.data.config.recentWorkspaces || []).filter((p) => p !== state.data.workspace);
       $('#recent-wrap').hidden = recent.length === 0;
@@ -880,6 +1016,29 @@
     'dismiss-run': () => { hideRun(); renderRun(); renderHistory(); },
     'open-project': () => openDialog('project'),
     'open-setup': () => openDialog('setup'),
+    'open-baton': () => openDialog('baton'),
+    'copy-protocol': () => navigator.clipboard.writeText(state.baton.protocol).then(() => toast('Copied. Paste it into the site’s instructions setting.')),
+    'baton-save': () => act(async () => {
+      const text = $('#baton-brief').value.trim();
+      if (!text) { toast('Paste the reply you got after typing mesh wrap.'); return; }
+      const brief = await api('/api/baton/brief', { from: $('#baton-from').value, text });
+      $('#baton-brief').value = '';
+      $('#baton-save-state').textContent = brief.wellFormed
+        ? `Saved${brief.keyFiles.length ? `; it mentions ${brief.keyFiles.length} file(s)` : ''}.`
+        : 'Saved, but it doesn’t look like a MESH BRIEF. Are the magic words set up on that site?';
+      await loadBaton();
+      await showContinue();
+    }),
+    'baton-skip': () => act(showContinue),
+    'baton-copy-message': () => navigator.clipboard.writeText(state.batonNext.message).then(() => toast(`Copied. Paste it into ${siteName(state.batonNext.to)}.`)),
+    'baton-passed': () => act(async () => {
+      const files = [...document.querySelectorAll('[data-baton-file]:checked')].map((el) => el.dataset.batonFile);
+      await api('/api/baton/pass', { to: state.batonNext.to, files });
+      $('#baton-step2').hidden = true;
+      toast(`${siteName(state.batonNext.to)} is up to date. Keep working there; type mesh wrap when you need to switch again.`);
+      state.batonNext = null;
+      await loadBaton();
+    }),
     'open-settings': () => openDialog('settings'),
     'open-activity': () => openDialog('activity'),
     'open-folder': () => act(() => api('/api/workspace/open', {})),
@@ -940,11 +1099,20 @@
     if (el.id === 'safe-toggle') act(async () => { await api('/api/mode', { safeMode: el.checked }); await refresh(); });
     if (el.id === 'set-edit') act(() => saveConfig({ permission: el.checked ? 'edit' : 'readonly' }));
     if (el.id === 'set-commit') act(() => saveConfig({ autoCommit: el.checked }));
+    if (el.dataset.batonProtocol) act(async () => { await api('/api/baton/protocol', { site: el.dataset.batonProtocol, installed: el.checked }); $('#baton-setup').dataset.touched = '1'; await loadBaton(); });
+    if (el.id === 'baton-from' || el.id === 'baton-to') { updateBatonNames(); $('#baton-step2').hidden = true; }
+    if (el.id === 'baton-file-input') { uploadFiles(el.files); el.value = ''; }
     if (el.id === 'set-smart') act(() => saveConfig({ smartRouting: el.checked }));
   });
   $('#instruction').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); start(); }
   });
+  const drop = $('#baton-drop');
+  drop.addEventListener('click', () => $('#baton-file-input').click());
+  drop.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); $('#baton-file-input').click(); } });
+  drop.addEventListener('dragover', (ev) => { ev.preventDefault(); drop.style.borderColor = 'var(--accent)'; });
+  drop.addEventListener('dragleave', () => { drop.style.borderColor = ''; });
+  drop.addEventListener('drop', (ev) => { ev.preventDefault(); drop.style.borderColor = ''; uploadFiles(ev.dataTransfer.files); });
   $('#folder-input').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') handlers['set-folder'](); });
 
   // Countdown clocks on resting agents

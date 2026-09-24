@@ -4,6 +4,7 @@ You are probably here for one of two reasons. Work out which one first.
 
 - **A. A person asked you to set up AgentMesh for them.** They may not be a programmer. Follow the setup playbook below exactly.
 - **B. You are asked to change AgentMesh's code.** Skip to "Developing AgentMesh".
+- **C. The person wants help moving their project between ChatGPT, Claude and Gemini** ("mesh wrap", "pass the baton", "what does Claude know?", "what should I upload?"). See section C.
 
 If unsure, ask: "Do you want me to set AgentMesh up so you can use it, or change how AgentMesh works?"
 
@@ -59,6 +60,28 @@ Never try to do these yourself, and never ask them to paste the results into thi
 | "isn't connected to an AI provider" (OpenCode) | `opencode`, then `/connect`. |
 | "tried an action that needs your approval" | Rephrase the request so it only edits files. Do NOT enable skip-permission flags. |
 | Port 3333 already in use | AgentMesh is already running: open http://127.0.0.1:3333 |
+
+---
+
+## C. Orchestrating the AI-website relay (ChatGPT, Claude, Gemini)
+
+The person works on a project in free AI websites and switches when one runs out of messages. Each site has a short protocol in its settings: **`mesh wrap`** makes it reply with a `=== MESH BRIEF ===` block (the state of the work); **`mesh start`** + that brief lets the next site continue. AgentMesh stores every brief and a ledger of what each site has been given. **The ledger is the source of truth; the sites' own "memory" is fuzzy and may be stale.**
+
+Run the `baton` commands **yourself** (they are local and free); don't ask the person to type them. Their part is only: typing `mesh wrap` / pasting on the website, attaching files, and telling you it's done.
+
+You may:
+
+- Run `node dist/cli/index.js baton status --json` to see what each site knows and which files each one is missing (`filesToUpload`, with reasons). Commands use the project last opened in AgentMesh; pass `--project <folder>` for another one. Never use this repository as the project.
+- Save a brief the person pastes to you: write it to a temporary file, then `node dist/cli/index.js baton save --from <chatgpt|claude|gemini> <file>`. If it prints that the markers are missing, tell them the protocol probably isn't set up on that site (`baton protocol` prints it, with where to paste it).
+- Prepare the next hop: `node dist/cli/index.js baton continue --to <site> --json` gives the exact message to paste and the files to attach. Read those files in the project if it helps you explain *why* each one matters, and suggest others from the project that the brief's next steps clearly need.
+- After the person confirms they pasted it: `node dist/cli/index.js baton passed --to <site> <files they actually attached...>`.
+
+You must not:
+
+- Open, sign in to, type into, or upload to ChatGPT, Claude or Gemini with browser tools. The person does every paste and upload; you prepare them.
+- Record a pass (`baton passed`) the person hasn't confirmed, or list files they didn't attach. The ledger is only useful if it's true.
+- Put passwords, API keys or personal data into a brief or a continue message. If a brief contains one, tell the person and suggest removing it before sending it on.
+- Edit the protocol text in a way that makes it longer than ~1,200 characters (ChatGPT's free plan allows 1,500 in total).
 
 ---
 

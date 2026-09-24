@@ -4,6 +4,8 @@ import chalk from 'chalk';
 import { AgentSelector } from '../router/agent-selector.js';
 import { TaskStore } from '../state/task-store.js';
 import { ConfigStore } from '../state/config-store.js';
+import { BatonStore } from '../baton/baton-store.js';
+import { PROTOCOL_TEXT, SITE_INFO, WEB_SITES, WebSite } from '../baton/protocol.js';
 import { AgentId } from '../types.js';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -220,6 +222,89 @@ program
   .action(() => {
     new AgentSelector().resetCooldowns();
     console.log(chalk.green('✔ All AgentMesh rate-limit cooldowns have been reset.'));
+  });
+
+// BATON: carry a project between ChatGPT, Claude and Gemini by hand (see AGENTS.md section C)
+const batonCmd = program.command('baton').description('Hand a project between AI websites (ChatGPT, Claude, Gemini)');
+const siteArg = (v: string): WebSite => {
+  if (!(WEB_SITES as string[]).includes(v)) throw new Error(`Site must be one of: ${WEB_SITES.join(', ')}`);
+  return v as WebSite;
+};
+/** Defaults to the project last opened in the dashboard, never the AgentMesh repo an assistant happens to be in. */
+function batonProject(opt?: string): BatonStore {
+  const dir = opt ? path.resolve(opt) : new ConfigStore().get().recentWorkspaces.find((d) => fs.existsSync(d));
+  if (!dir) throw new Error('No project yet. Open AgentMesh, choose a project folder, or pass --project <folder>.');
+  console.error(chalk.dim(`Project: ${dir}`));
+  return new BatonStore(dir);
+}
+
+batonCmd
+  .command('protocol')
+  .description('Print the text to paste into each AI website’s instructions (one time)')
+  .action(() => {
+    console.log(PROTOCOL_TEXT);
+    console.error('');
+    for (const s of WEB_SITES) console.error(chalk.dim(`${SITE_INFO[s].name}: ${SITE_INFO[s].where}`));
+  });
+
+batonCmd
+  .command('status')
+  .description('What each AI website knows about the project, and what to upload next')
+  .option('--project <folder>')
+  .option('--json')
+  .action((opts) => {
+    const store = batonProject(opts.project);
+    const knowledge = store.knowledge();
+    const latest = store.latestBrief();
+    const out = {
+      latestBrief: latest ? { from: latest.from, at: new Date(latest.at).toISOString(), project: latest.project, keyFiles: latest.keyFiles, wellFormed: latest.wellFormed } : null,
+      sites: Object.fromEntries(WEB_SITES.map((s) => [s, { ...knowledge[s], filesToUpload: store.suggestFiles(s) }]))
+    };
+    if (opts.json) return console.log(JSON.stringify(out, null, 2));
+    console.log(latest ? `Latest brief: from ${latest.from}, ${new Date(latest.at).toLocaleString()}` : 'No briefs yet.');
+    for (const s of WEB_SITES) {
+      const k = out.sites[s];
+      console.log(`\n${chalk.bold(SITE_INFO[s].name)}${k.protocolInstalled ? '' : chalk.yellow(' (protocol not installed yet)')}\n  ${k.summary}`);
+      for (const f of k.filesToUpload) console.log(`  upload: ${f.path} ${chalk.dim(`(${f.reason})`)}`);
+    }
+  });
+
+batonCmd
+  .command('save')
+  .description('Save a MESH BRIEF (the reply to "mesh wrap") from a file, or from stdin')
+  .requiredOption('--from <site>', 'chatgpt | claude | gemini')
+  .argument('[file]')
+  .option('--project <folder>')
+  .action((file: string | undefined, opts) => {
+    const text = fs.readFileSync(file ?? 0, 'utf8');
+    const brief = batonProject(opts.project).addBrief(siteArg(opts.from), text);
+    console.log(brief.wellFormed ? chalk.green('✔ Brief saved.') : chalk.yellow('Saved, but no MESH BRIEF markers were found. Is the protocol installed on that site?'));
+    if (brief.keyFiles.length) console.log(`Key files mentioned: ${brief.keyFiles.join(', ')}`);
+  });
+
+batonCmd
+  .command('continue')
+  .description('Print the message to paste into the next AI website, plus the files to attach')
+  .requiredOption('--to <site>', 'chatgpt | claude | gemini')
+  .option('--project <folder>')
+  .option('--json')
+  .action((opts) => {
+    const next = batonProject(opts.project).continueOn(siteArg(opts.to));
+    if (opts.json) return console.log(JSON.stringify(next, null, 2));
+    console.log(next.message);
+    console.error(chalk.bold(`\nAttach in ${SITE_INFO[opts.to as WebSite].name}:`) + (next.files.length ? '' : ' nothing new'));
+    for (const f of next.files) console.error(`  ${f.path} ${chalk.dim(`(${f.reason})`)}`);
+  });
+
+batonCmd
+  .command('passed')
+  .description('Record that the person pasted the latest brief (and attached these files) on a site')
+  .requiredOption('--to <site>', 'chatgpt | claude | gemini')
+  .argument('[files...]')
+  .option('--project <folder>')
+  .action((files: string[], opts) => {
+    batonProject(opts.project).recordPass(siteArg(opts.to), files);
+    console.log(chalk.green(`✔ Recorded. ${SITE_INFO[opts.to as WebSite].name} is now up to date.`));
   });
 
 /** Last project the user worked in; on first run, their Documents folder (they pick a real project in setup). */
