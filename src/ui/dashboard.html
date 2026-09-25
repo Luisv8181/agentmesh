@@ -568,6 +568,9 @@
     agy: { name: 'Google Antigravity', by: 'Google', free: true, cost: 'Free with a Google account (weekly limits). Higher limits come with Google AI Pro or Ultra.',
       install: WIN ? 'irm https://antigravity.google/cli/install.ps1 | iex' : null,
       signin: 'Type agy and press Enter. A browser opens: sign in.', docs: 'https://antigravity.google/docs/cli/install' },
+    copilot: { name: 'GitHub Copilot', by: 'GitHub', free: true, cost: 'Free with a GitHub account (Copilot Free has a small monthly allowance). Paid Copilot plans get more.',
+      install: 'npm install -g @github/copilot',
+      signin: 'Type copilot login and sign in with your GitHub account in the browser.', docs: 'https://docs.github.com/en/copilot/get-started/cli-quickstart' },
     opencode: { name: 'OpenCode', by: 'SST', free: true, cost: 'Free models through OpenCode Zen (free OpenCode account). Some free models use your prompts for training; “Space Bunny Free” doesn’t. Other providers may bill per use.',
       install: 'npm install -g opencode-ai',
       signin: 'Type opencode, press Enter, type /connect, choose OpenCode Zen and follow the link to get your key. Then in AgentMesh Settings → Models set OpenCode to opencode/space-bunny-free.', docs: 'https://opencode.ai/docs/zen/' },
@@ -843,7 +846,7 @@
     const agents = state.data.agents;
     const ready = agents.filter((a) => a.available);
     $('#setup-summary').innerHTML = agents.map((a) => `<span class="check"><span class="dot ${a.available ? 'ok' : 'off'}"></span>${esc(a.name)}</span>`).join('');
-    const order = ['agy', 'ollama', 'gemini', 'opencode', 'claude', 'codex'];
+    const order = ['agy', 'ollama', 'copilot', 'gemini', 'opencode', 'claude', 'codex'];
     const sorted = [...agents].sort((a, b) => (a.available - b.available) || order.indexOf(a.id) - order.indexOf(b.id));
     $('#setup-agents').innerHTML = (ready.length ? '' : '<p class="small muted" style="margin:0 0 10px"><b>No paid AI plans?</b> Start with <b>Google Antigravity</b> (free with a Google account) and <b>Ollama</b> (free, runs on this PC). Add Gemini (free API key) and OpenCode (free models) as backups for when one hits its limit. If you already pay for Claude or ChatGPT, set that one up too.</p>') +
       sorted.map((a) => {
@@ -1077,7 +1080,7 @@
       title: 'I use free AI',
       body: 'ChatGPT, Claude or Gemini on the web, without paying. AgentMesh moves your work between them when one runs out, and adds free helpers on your computer.',
       use: 'Use this if you don’t pay for any AI plan.',
-      explain: 'Free AI: the AI-websites relay comes first, only free helpers are used (Antigravity, Gemini with a free key, OpenCode free models, Ollama), and questions go to the free local model first so your limits last longer.'
+      explain: 'Free AI: the AI-websites relay comes first, only free helpers are used (Antigravity, GitHub Copilot Free, Gemini with a free key, OpenCode free models, Ollama), and questions go to the free local model first so your limits last longer.'
     },
     subscriptions: {
       title: 'I pay for AI',
@@ -1130,7 +1133,7 @@
       const free = d.config.mode === 'free';
       const agentsReady = d.agents.filter((a) => a.available && !a.hint && a.priority !== null);
       const paidReady = agentsReady.some((a) => a.id === 'claude' || a.id === 'codex');
-      const freeReady = agentsReady.some((a) => ['agy', 'gemini', 'opencode', 'ollama'].includes(a.id));
+      const freeReady = agentsReady.some((a) => ['agy', 'copilot', 'gemini', 'opencode', 'ollama'].includes(a.id));
       const sitesDone = state.baton ? ['chatgpt', 'claude', 'gemini'].filter((s) => state.baton.knowledge[s].protocolInstalled).length : 0;
       const todos = free
         ? [

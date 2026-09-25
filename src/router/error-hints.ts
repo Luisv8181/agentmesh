@@ -18,7 +18,8 @@ const SIGN_IN: Record<string, string> = {
   codex: 'codex login',
   agy: 'agy',
   gemini: 'gemini',
-  opencode: 'opencode (then type /connect)'
+  opencode: 'opencode (then type /connect)',
+  copilot: 'copilot login'
 };
 
 export function fixHint(agentId: string, agentName: string, raw: string): string | null {

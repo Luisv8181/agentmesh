@@ -549,3 +549,13 @@ test('Sign-in checks parse the real outputs of claude, codex and opencode', asyn
   assert.strictEqual(await state(withOutput(new OpenCodeAdapter(), outputs.opencode)), 'out', 'env-var providers do not count');
   assert.strictEqual(await state(withOutput(new OpenCodeAdapter(), outputs.opencodeIn)), 'in');
 });
+
+test('Copilot adapter: prompt intact, may edit files but not run commands, never waits for input', async () => {
+  const { CopilotAdapter } = await import('../adapters/copilot-adapter.js');
+  installFakeCli('copilot');
+  const edit = JSON.parse((await new CopilotAdapter().execute(NASTY_PROMPT, { timeoutMs: 20_000, model: 'gpt-5.3-codex' })).output);
+  assert.deepStrictEqual(edit.args, ['-p', NASTY_PROMPT, '-s', '--no-ask-user', '--model', 'gpt-5.3-codex', '--allow-tool', 'write']);
+  const read = JSON.parse((await new CopilotAdapter().execute('hi', { timeoutMs: 20_000, permission: 'readonly' })).output);
+  assert.ok(!read.args.includes('--allow-tool'), 'read-only grants no tools');
+  assert.ok(!edit.args.some((a: string) => /allow-all|yolo/.test(a)), 'never all-permissions');
+});

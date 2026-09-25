@@ -5,6 +5,7 @@ import { CodexAdapter } from '../adapters/codex-adapter.js';
 import { AgyAdapter } from '../adapters/agy-adapter.js';
 import { GeminiAdapter } from '../adapters/gemini-adapter.js';
 import { OpenCodeAdapter } from '../adapters/opencode-adapter.js';
+import { CopilotAdapter } from '../adapters/copilot-adapter.js';
 import { OllamaAdapter } from '../adapters/ollama-adapter.js';
 import { RateLimiter } from './rate-limiter.js';
 import { TaskStore } from '../state/task-store.js';
@@ -28,7 +29,7 @@ import {
 } from '../types.js';
 
 /** Everything except local Ollama can cost money, so Safe Mode blocks all of them. */
-export const SUBSCRIPTION_AGENTS: AgentId[] = ['claude', 'codex', 'agy', 'gemini', 'opencode'];
+export const SUBSCRIPTION_AGENTS: AgentId[] = ['claude', 'codex', 'agy', 'copilot', 'gemini', 'opencode'];
 
 const MAX_STORED_OUTPUT = 50_000;
 const MAX_STORED_RUNS = 50;
@@ -66,6 +67,7 @@ export class AgentSelector {
     this.register(new CodexAdapter());
     this.register(new AgyAdapter());
     this.register(new GeminiAdapter());
+    this.register(new CopilotAdapter());
     this.register(new OpenCodeAdapter());
     this.register(new OllamaAdapter(undefined, config.get().ollamaModel));
 

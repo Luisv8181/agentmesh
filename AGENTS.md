@@ -26,7 +26,7 @@ Never try to do these yourself, and never ask them to paste the results into thi
 
 ### Never do these, even if an error message suggests it
 
-- Never add `--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`, `--yolo`, or any flag that turns off an agent's permission checks. Some CLIs recommend this in their own error messages; that advice is wrong for AgentMesh, which runs agents unattended.
+- Never add `--dangerously-skip-permissions`, `--dangerously-bypass-approvals-and-sandbox`, `--yolo`, `--allow-all`/`--allow-all-tools` (Copilot), or any flag that turns off an agent's permission checks. Some CLIs recommend this in their own error messages; that advice is wrong for AgentMesh, which runs agents unattended.
 - Never edit the person's global AI tool settings (`~/.claude/settings.json`, `~/.codex/config.toml`, `~/.gemini/...`, OpenCode config). If an agent needs a different model, the person sets it in AgentMesh → Settings → Models.
 - Never run a real task through the paid or quota-limited agents "to test it" without asking first. It spends their limits.
 - Never run AgentMesh with this repository as the project folder. Agents would edit AgentMesh itself.
@@ -42,6 +42,7 @@ Never try to do these yourself, and never ask them to paste the results into thi
 4. **Help them choose agents.** Ask whether they pay for any AI plan. With **no paid plans**, recommend, in this order:
    - **Google Antigravity** (`agy`): free with a Google account, weekly limits. Install in PowerShell: `irm https://antigravity.google/cli/install.ps1 | iex`, then they type `agy` and sign in.
    - **Ollama**: free, runs locally, answers questions but cannot edit files. Install: `irm https://ollama.com/install.ps1 | iex`, then `ollama pull qwen2.5:7b` (several GB; needs a reasonably powerful PC).
+   - **GitHub Copilot CLI** (backup, free with a GitHub account, small monthly allowance): `npm install -g @github/copilot`, then they run `copilot login`.
    - **Gemini CLI with a free API key** (backup): `npm install -g @google/gemini-cli`; they get a key at https://aistudio.google.com/apikey and enter it when `gemini` asks (API key option). Free Google-account sign-in no longer works for the Gemini CLI.
    - **OpenCode with free Zen models** (backup): `npm install -g opencode-ai`; they run `opencode`, type `/connect`, choose OpenCode Zen. Then AgentMesh Settings → Models → OpenCode: `opencode/space-bunny-free` (zero-retention; other free models may train on prompts).
    With paid plans: Claude Code (`irm https://claude.ai/install.ps1 | iex`, then `claude auth login`) or OpenAI Codex (`npm install -g @openai/codex`, then `codex login`).

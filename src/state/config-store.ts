@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { AgentId } from '../types.js';
 
-export const ALL_AGENTS: AgentId[] = ['claude', 'codex', 'agy', 'gemini', 'opencode', 'ollama'];
+export const ALL_AGENTS: AgentId[] = ['claude', 'codex', 'agy', 'copilot', 'gemini', 'opencode', 'ollama'];
 
 export type Mode = 'subscriptions' | 'free';
 
@@ -12,8 +12,8 @@ export type Mode = 'subscriptions' | 'free';
  * Free: free helpers only, and smart routing on so free quotas last.
  */
 export const MODE_PRESETS: Record<Mode, Pick<AgentMeshConfig, 'priority' | 'smartRouting'>> = {
-  subscriptions: { priority: ['claude', 'codex', 'agy', 'gemini', 'opencode', 'ollama'], smartRouting: false },
-  free: { priority: ['agy', 'gemini', 'opencode', 'ollama'], smartRouting: true }
+  subscriptions: { priority: ['claude', 'codex', 'copilot', 'agy', 'gemini', 'opencode', 'ollama'], smartRouting: false },
+  free: { priority: ['agy', 'copilot', 'gemini', 'opencode', 'ollama'], smartRouting: true }
 };
 
 export interface AgentMeshConfig {
