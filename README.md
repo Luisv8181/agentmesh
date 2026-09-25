@@ -22,7 +22,7 @@ AgentMesh asks you this the first time you open it. You can switch any time in S
 
 **⬇ [Download for Windows (ZIP)](https://github.com/Luisv8181/agentmesh/archive/refs/heads/main.zip)**, extract it, and double-click **Start AgentMesh**.
 
-Not sure which mode? Choose **Free AI mode**. **Not a programmer?** Start with [GETTING-STARTED.md](GETTING-STARTED.md): double-click **Start AgentMesh** and it walks you through the rest. **Helping someone set it up with an AI assistant?** Point it at this repo; [AGENTS.md](AGENTS.md) tells it exactly what to do and what not to do.
+Not sure which mode? Choose **Free AI mode**. **Not a programmer?** Start with [GETTING-STARTED.md](GETTING-STARTED.md): double-click **Start AgentMesh** and it walks you through the rest. **Helping someone set it up with an AI assistant?** Point it at this repo; [AGENTS.md](AGENTS.md) tells it exactly what to do and what not to do. **Want it to work differently?** AgentMesh is meant to be reshaped: ask your AI to follow [AGENTS.md section D](AGENTS.md#d-making-agentmesh-fit-this-person-keep-building-into-it).
 
 ```text
              ┌────────────────────┐

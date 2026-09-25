@@ -1,12 +1,15 @@
 # Instructions for AI assistants working in this repository
 
-You are probably here for one of two reasons. Work out which one first.
+You are probably here for one of these reasons. Work out which one first.
 
 - **A. A person asked you to set up AgentMesh for them.** They may not be a programmer. Follow the setup playbook below exactly.
 - **B. You are asked to change AgentMesh's code.** Skip to "Developing AgentMesh".
 - **C. The person wants help moving their project between ChatGPT, Claude and Gemini** ("mesh wrap", "pass the baton", "what does Claude know?", "what should I upload?"). See section C.
+- **D. The person wants AgentMesh to work differently for them** ("can it also…", "I don't use Gemini", "this step is confusing", "make it do X"). See section D.
 
 If unsure, ask: "Do you want me to set AgentMesh up so you can use it, or change how AgentMesh works?"
+
+> **AgentMesh is a starting point, not a finished product.** It was shared with this person so they could make it their own. If it isn't exactly what they need, keep building into it: fix what confuses them, remove what they don't use, add what's missing. Section D explains how to do that safely. Don't tell them "AgentMesh doesn't do that". Say what it would take to add, then offer to build it.
 
 ---
 
@@ -32,7 +35,7 @@ Never try to do these yourself, and never ask them to paste the results into thi
 - Never run a real task through the paid or quota-limited agents "to test it" without asking first. It spends their limits.
 - Never run AgentMesh with this repository as the project folder. Agents would edit AgentMesh itself.
 - Never install things globally beyond the steps below without asking. Never run anything as Administrator.
-- Never push, publish, or commit on the person's behalf unless they ask (see GitHub in section C).
+- Never push, publish, or commit on the person's behalf unless they ask (see GitHub in section C; section D covers committing your own changes to AgentMesh).
 
 ### Steps
 
@@ -105,3 +108,68 @@ You must not:
   - Safe Mode = Ollama only. Ollama can't edit files (it answers from a read-only project snapshot), is never the "sticky" agent for a task, and never sees `.env`/key/credential files.
   - Git checkpoints are opt-in and only stage tracked files.
 - When you fix a bug, add a test that fails without the fix (prove it by reverting the fix once).
+
+---
+
+## D. Making AgentMesh fit this person (keep building into it)
+
+The person got AgentMesh from a friend so they could shape it to how they work. Changing it is expected and welcome. They are probably not a programmer, so you do the building and they decide what they want.
+
+### How to work with them
+
+1. **Understand the need, not just the request.** Ask what they were trying to do when AgentMesh got in the way. "Add a button for X" often really means "I couldn't find Y".
+2. **Say the plan in one or two plain sentences** before changing code ("I'll make the welcome screen skip the AI-websites step, since you only use Antigravity."). Wait for a yes on anything bigger than wording or looks.
+3. **Make small changes, one at a time**, and finish each one before starting the next: build, test, have them try it.
+4. **Suggest, don't pile on.** If you notice something else worth improving, mention it in one line and let them choose.
+
+### Before the first change: make it undoable (once)
+
+A folder from the ZIP download has no history, so nothing can be undone. Ask the person first ("I'll set up version history so any change can be undone. OK?"), then run this in the AgentMesh folder:
+
+```
+git --version
+git init
+git remote add upstream https://github.com/Luisv8181/agentmesh.git
+git fetch upstream main
+git reset upstream/main
+git branch -m main
+```
+
+`git reset upstream/main` only connects the folder to the original's history. It does not touch any file. Afterwards `git status` shows only what differs from the original. If `git --version` fails, Git isn't installed: ask before running `winget install --id Git.Git -e`, then restart the IDE.
+
+After each change that works, commit it with a message the person could understand: `git add -A` then `git commit -m "Skip the AI-websites step on the welcome screen"`. "Undo that" means `git revert <commit>`. Never use `reset --hard`, `push --force`, or anything else that rewrites history.
+
+**Getting updates from the original later:** `git pull upstream main`. If it reports a conflict, resolve it so both the update and their change survive, then build and test. If you can't tell which one they would want, ask.
+
+**Keeping their version safe online (optional, only if they ask):** they create an empty repository on github.com. You run `git remote add origin <their link>` and `git push -u origin main`; Git opens its own sign-in window for them. Never push to `upstream`, since that is the friend's repository.
+
+### Build, test, try
+
+- After every change: `npm run build` and `npm test`. Every test must pass. Never delete or loosen a test to make it pass. If a test blocks what they want, explain which safety rule it protects and find another way.
+- For a bug fix or new behaviour, add a test in `src/test/` that fails without your change.
+- To see the change, the person closes the black AgentMesh window and double-clicks `Start AgentMesh.cmd` again (it rebuilds on every start). For changes to the web page only (`src/ui/dashboard.html`), a build plus a browser refresh is enough.
+- Browser panel changes (`extension/`): they open `chrome://extensions` (or `edge://extensions`) and click the reload arrow on AgentMesh.
+- To try agent runs, use a throwaway project folder, never this repository.
+
+### Where things live (what they ask → what to change)
+
+| They want to… | Change |
+|---|---|
+| Change wording, layout, colours, or the welcome steps | `src/ui/dashboard.html` (one file: HTML, CSS and script; no external scripts or fonts, the page's security policy blocks them) |
+| Use a different default order of agents, or different mode defaults | `MODE_PRESETS` and `ALL_AGENTS` in `src/state/config-store.ts` (or just use Settings, with no code change) |
+| Send different kinds of requests to different agents | `src/router/task-classifier.ts` (rules) and `resolveQueue` in `src/router/agent-selector.ts` |
+| Add another command-line AI tool | A new file in `src/adapters/` modelled on `copilot-adapter.ts`, its id in `AgentId` (`src/types.ts`), `ALL_AGENTS`/`MODE_PRESETS`, its sign-in command in `SIGN_IN` (`src/router/error-hints.ts`), install help in the dashboard's setup list, plus a test in `src/test/hardening.test.ts` that it runs with edit permissions only |
+| Add another AI website (e.g. Copilot, Perplexity, DeepSeek) | `WebSite`, `WEB_SITES` and `SITE_INFO` in `src/baton/protocol.ts`; `SITES` in the dashboard; for the browser panel, `extension/manifest.json` (host permissions and content-script matches), `SITES`/`SITE_URLS`/`SITE_NAMES` in `extension/lib.js`, and `findComposer` in `extension/content.js` (where that site's message box is). Then search `src/` and `extension/` for `'gemini'` to catch other places that list the sites. |
+| Change the magic words or the handoff note format | `PROTOCOL_TEXT` / `parseBrief` in `src/baton/protocol.ts`. Keep it under ~1,200 characters. Afterwards they must paste the new text into each AI website's settings again, so tell them. |
+| Search more or fewer kinds of files | `TEXT_EXT` in `src/search/project-search.ts` |
+| Drop a feature they never use | Remove it completely (code, UI, and the tests that only cover that feature) rather than hiding it behind a flag. Tests in `src/test/hardening.test.ts` protect safety rules. Keep them. |
+
+Their data (tasks, handoffs, settings) lives in `~/.agentmesh/` and in each project's `.agentmesh/` folder, never in this repository. Rebuilding or updating AgentMesh does not lose it.
+
+### What must stay true, however much you change
+
+Everything under "Never do these" in section A, and every invariant in section B, still applies. In particular: no skip-permission flags, the dashboard stays reachable only from this PC with its per-launch token, `.env`/key files are never read by Ollama, indexed by search, or uploaded to GitHub, and the person does every sign-in, paste and upload themselves. If they ask for something that would break one of these, explain the risk plainly and offer a safer way to get what they're after.
+
+### If the change could help others
+
+If they build something generally useful, you can suggest they send it to the friend who shared AgentMesh (for example, as a pull request from their own GitHub copy). That's their choice. Don't do it for them.

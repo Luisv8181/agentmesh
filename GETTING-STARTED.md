@@ -95,6 +95,18 @@ If you use Antigravity, you can also just tell it "I'm switching from ChatGPT to
 - If an assistant hits its limit, its dot turns amber with a countdown. AgentMesh automatically moves on to the next one.
 - AgentMesh only works on your own computer. Nobody else can reach the page.
 
+## Make it yours
+
+AgentMesh is meant to be changed. If something is confusing, missing, or just not how you work, your AI can change AgentMesh itself for you. You don't need to know how to code.
+
+Open the **agentmesh-main** folder in Antigravity and paste this, filling in the last line:
+
+> Read AGENTS.md, section D. I want to change how AgentMesh works for me. Before your first change, set up version history so I can undo anything. Explain each change in plain words before you make it, and check that everything still works afterwards. Here's what I want: …
+
+Some ideas: *"I only use ChatGPT and Claude, remove Gemini everywhere"*, *"make the text bigger"*, *"add Perplexity as an AI website"*, *"the welcome screen confused me at the part where…"*. If a change isn't right, say *"undo that"*.
+
+Your tasks, handoff notes and settings are stored separately, so changing AgentMesh never loses them.
+
 ## Something went wrong?
 
 | What you see | What to do |
