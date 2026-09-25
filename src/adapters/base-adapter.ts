@@ -43,13 +43,35 @@ const AVAILABILITY_TTL_MS = 60_000;
 /** Sign-in checks spawn a CLI (and agy makes a network call), so they refresh less often than --version. */
 const SIGN_IN_TTL_MS = 10 * 60_000;
 
+/**
+ * Shared across adapter instances: whether a CLI is installed and signed in doesn't depend on which
+ * project is open, so switching projects shouldn't re-run every check (it took several seconds).
+ */
+const availabilityCaches = new Map<string, { value: Availability; at: number }>();
+const signInCaches = new Map<string, { value: SignIn; at: number }>();
+
 export abstract class BaseAdapter {
   abstract readonly id: AgentId;
   abstract readonly name: string;
   abstract readonly command: string;
 
-  private availabilityCache: { value: Availability; at: number } | null = null;
-  private signInCache: { value: SignIn; at: number } | null = null;
+  private get cacheKey(): string {
+    return `${this.constructor.name}:${this.command}`;
+  }
+  private get availabilityCache() {
+    return availabilityCaches.get(this.cacheKey) ?? null;
+  }
+  private set availabilityCache(v: { value: Availability; at: number } | null) {
+    if (v) availabilityCaches.set(this.cacheKey, v);
+    else availabilityCaches.delete(this.cacheKey);
+  }
+  private get signInCache() {
+    return signInCaches.get(this.cacheKey) ?? null;
+  }
+  private set signInCache(v: { value: SignIn; at: number } | null) {
+    if (v) signInCaches.set(this.cacheKey, v);
+    else signInCaches.delete(this.cacheKey);
+  }
 
   abstract execute(prompt: string, options?: ExecuteOptions): Promise<AdapterExecutionResult>;
 

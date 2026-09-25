@@ -1416,10 +1416,18 @@
       const input = el.dataset.from === 'dlg' ? $('#new-folder-name-dlg') : $('#new-folder-name');
       const name = input.value.trim();
       if (!name) { input.focus(); toast('Give your project a name first.'); return; }
-      const r = await api('/api/workspace/new', { name });
-      if ($('#dlg-project').open) $('#dlg-project').close();
-      await refresh();
-      toast(`Created ${folderName(r.workspace)} in Documents › AgentMesh Projects.`);
+      el.disabled = true;
+      el.textContent = 'Creating…';
+      try {
+        const r = await api('/api/workspace/new', { name });
+        input.value = '';
+        toast(`Created “${folderName(r.workspace)}” in Documents › AgentMesh Projects.`);
+        if ($('#dlg-project').open) $('#dlg-project').close();
+        await refresh();
+      } finally {
+        el.disabled = false;
+        el.textContent = 'Create';
+      }
     }),
     'open-ext-folder': () => act(() => api('/api/extension/open-folder', {})),
     'copy-ext-code': () => navigator.clipboard.writeText(state.ext?.code || '').then(() => toast('Copied. Paste it into the AgentMesh panel in your browser.')),
