@@ -373,7 +373,10 @@
   <div class="dlg-head"><h2 id="dlg-project-title">Choose a project folder</h2><span class="spacer"></span><button class="btn sm ghost" data-close>Close</button></div>
   <div class="dlg-body">
     <p class="muted" style="margin:0">Agents only work inside this folder. Pick the folder that holds your project's files.</p>
-    <div><button class="btn primary" data-action="browse-folder">Browse…</button></div>
+    <div class="row" style="flex-wrap:wrap"><button class="btn primary" data-action="browse-folder">Browse…</button>
+      <span class="small muted">or start a new one:</span>
+      <input class="text" id="new-folder-name-dlg" placeholder="Name, e.g. Bakery website" maxlength="60" style="width:auto;flex:1;min-width:160px">
+      <button class="btn" data-action="new-folder" data-from="dlg">Create</button></div>
     <div>
       <div class="section-title">Or paste a folder path</div>
       <div class="row">
@@ -1142,7 +1145,10 @@
         <div class="todo"><div class="num">📁</div><div style="flex:1;min-width:0"><b>${esc(folderName(d.workspace))}</b><div class="small muted" style="overflow-wrap:anywhere">${esc(d.workspace)}</div>
           ${broad ? '<div class="small" style="margin-top:6px;color:var(--warn)">This looks like a big general folder. Choose the folder for one project instead.</div>' : ''}</div>
           <button class="btn" data-action="open-project">Change</button></div>
-        <div class="welcome-foot"><button class="btn primary lg" data-action="welcome-next">Use this folder</button></div>
+        <div class="todo"><div class="num">✚</div><div style="flex:1;min-width:0"><b>Don’t have a project folder yet?</b>
+          <div class="small muted">AgentMesh makes one in Documents › AgentMesh Projects.</div>
+          <div class="row" style="margin-top:8px"><input class="text" id="new-folder-name" placeholder="Name it, e.g. Bakery website" maxlength="60"><button class="btn" data-action="new-folder">Create</button></div></div></div>
+        <div class="welcome-foot"><button class="btn ${broad ? '' : 'primary'} lg" data-action="welcome-next">Use ${esc(folderName(d.workspace))}</button></div>
       </div>`;
     } else {
       const free = d.config.mode === 'free';
@@ -1406,6 +1412,15 @@
     'open-setup': () => openDialog('setup'),
     'open-baton': () => openDialog('baton'),
     'open-search': () => openSearch(),
+    'new-folder': (el) => act(async () => {
+      const input = el.dataset.from === 'dlg' ? $('#new-folder-name-dlg') : $('#new-folder-name');
+      const name = input.value.trim();
+      if (!name) { input.focus(); toast('Give your project a name first.'); return; }
+      const r = await api('/api/workspace/new', { name });
+      if ($('#dlg-project').open) $('#dlg-project').close();
+      await refresh();
+      toast(`Created ${folderName(r.workspace)} in Documents › AgentMesh Projects.`);
+    }),
     'open-ext-folder': () => act(() => api('/api/extension/open-folder', {})),
     'copy-ext-code': () => navigator.clipboard.writeText(state.ext?.code || '').then(() => toast('Copied. Paste it into the AgentMesh panel in your browser.')),
     'reset-ext-code': () => act(async () => { const x = await api('/api/extension/reset', {}); state.ext = { ...state.ext, ...x }; $('#ext-code').textContent = x.code; toast('New code made. Paste it into the panel again.'); }),

@@ -6,6 +6,10 @@ import * as os from 'os';
 import { PROTOCOL_TEXT, parseBrief, BRIEF_START, BRIEF_END } from '../baton/protocol.js';
 import { BatonStore } from '../baton/baton-store.js';
 import { TaskStore } from '../state/task-store.js';
+import { spawnSync as spawnSyncForGit } from 'child_process';
+// Tests that need Git skip (with a reason) on PCs without it, so setup isn't blocked by them.
+const NEEDS_GIT = spawnSyncForGit('git', ['--version']).status === 0 ? {} : { skip: 'Git is not installed on this PC' };
+
 
 process.env.AGENTMESH_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'agentmesh-home-'));
 
@@ -101,7 +105,7 @@ test('The site that wrote a brief already has its key files; a later change is f
   assert.deepStrictEqual(store.suggestFiles('claude'), [{ path: 'styles.css', reason: 'changed since Claude last saw it' }]);
 });
 
-test('With the project on GitHub, Claude and Gemini get "Sync / Import code" instead of files; ChatGPT still gets files', async () => {
+test('With the project on GitHub, Claude and Gemini get "Sync / Import code" instead of files; ChatGPT still gets files', NEEDS_GIT, async () => {
   const cp = await import('child_process');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentmesh-baton-gh-'));
   fs.writeFileSync(path.join(dir, 'index.html'), '<h1>v1</h1>');

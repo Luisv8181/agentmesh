@@ -3,7 +3,7 @@
 **Multi-Agent Coding Orchestrator with Shared Work State & Rate-Limit Failover.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22.13-brightgreen.svg)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
 
 AgentMesh coordinates developer subscriptions and CLI agents (**Claude Code**, **OpenAI Codex**, **Google Antigravity CLI / agy**, **OpenCode AI**, **Google Gemini**, and **Local Ollama**) across a shared workspace.
@@ -20,7 +20,9 @@ AgentMesh asks you this the first time you open it. You can switch any time in S
 | **Helpers used** | Google Antigravity (free Google account), GitHub Copilot Free, Gemini CLI (free API key), OpenCode (free models), Ollama (runs locally) | Claude Code, Codex first, then the free helpers as backup |
 | **Costs** | Nothing | Only your existing plans; nothing extra |
 
-Not sure? Choose **Free AI mode**. **Not a programmer?** Start with [GETTING-STARTED.md](GETTING-STARTED.md): double-click **Start AgentMesh** and it walks you through the rest. **Helping someone set it up with an AI assistant?** Point it at this repo; [AGENTS.md](AGENTS.md) tells it exactly what to do and what not to do.
+**⬇ [Download for Windows (ZIP)](https://github.com/Luisv8181/agentmesh/archive/refs/heads/main.zip)**, extract it, and double-click **Start AgentMesh**.
+
+Not sure which mode? Choose **Free AI mode**. **Not a programmer?** Start with [GETTING-STARTED.md](GETTING-STARTED.md): double-click **Start AgentMesh** and it walks you through the rest. **Helping someone set it up with an AI assistant?** Point it at this repo; [AGENTS.md](AGENTS.md) tells it exactly what to do and what not to do.
 
 ```text
              ┌────────────────────┐

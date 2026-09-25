@@ -5,6 +5,10 @@ import * as path from 'path';
 import * as os from 'os';
 import * as cp from 'child_process';
 import { attachRemote, githubStatus, parseGitHubUrl, explainPushError } from '../workspace/github.js';
+import { spawnSync as spawnSyncForGit } from 'child_process';
+// Tests that need Git skip (with a reason) on PCs without it, so setup isn't blocked by them.
+const NEEDS_GIT = spawnSyncForGit('git', ['--version']).status === 0 ? {} : { skip: 'Git is not installed on this PC' };
+
 
 const tmp = (p: string) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 const git = (cwd: string, ...args: string[]) => cp.spawnSync('git', args, { cwd, encoding: 'utf8' }).stdout.trim();
@@ -22,7 +26,7 @@ function setup() {
   return { remote, project };
 }
 
-test('Put on GitHub: sets up history, uploads the project, never uploads secrets or AgentMesh state', () => {
+test('Put on GitHub: sets up history, uploads the project, never uploads secrets or AgentMesh state', NEEDS_GIT, () => {
   const { remote, project } = setup();
   const res = attachRemote(project, remote, 'rosa-bakery');
   assert.strictEqual(res.ok, true, res.error);
@@ -39,7 +43,7 @@ test('Put on GitHub: sets up history, uploads the project, never uploads secrets
   assert.ok(s.skipped.includes('credentials.json'));
 });
 
-test('Save picks up changes and new files, and status reports them first', () => {
+test('Save picks up changes and new files, and status reports them first', NEEDS_GIT, () => {
   const { remote, project } = setup();
   attachRemote(project, remote, 'rosa-bakery');
   fs.writeFileSync(path.join(project, 'index.html'), '<h1>Bakery v2</h1>');
@@ -53,7 +57,7 @@ test('Save picks up changes and new files, and status reports them first', () =>
   assert.strictEqual(githubStatus(project).inSync, true);
 });
 
-test('Never re-points a project that is already connected somewhere else', () => {
+test('Never re-points a project that is already connected somewhere else', NEEDS_GIT, () => {
   const { remote, project } = setup();
   attachRemote(project, remote, 'a');
   const other = tmp('agentmesh-remote2-');
@@ -63,7 +67,7 @@ test('Never re-points a project that is already connected somewhere else', () =>
   assert.match(res.error ?? '', /already connected/);
 });
 
-test('A project folder inside some other repository is not treated as its own repo', () => {
+test('A project folder inside some other repository is not treated as its own repo', NEEDS_GIT, () => {
   const outer = tmp('agentmesh-outer-');
   cp.spawnSync('git', ['init', outer]);
   const inner = path.join(outer, 'my-project');

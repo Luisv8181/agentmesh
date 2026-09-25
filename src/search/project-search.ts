@@ -122,7 +122,12 @@ export class ProjectSearch {
       }
     }
 
-    const { DatabaseSync } = require('node:sqlite');
+    let DatabaseSync: new (file: string) => unknown;
+    try {
+      ({ DatabaseSync } = require('node:sqlite'));
+    } catch {
+      throw new Error('Search needs Node.js 22.13 or newer. Install the current LTS from nodejs.org and restart AgentMesh.');
+    }
     this.db?.close();
     const db = new DatabaseSync(':memory:') as SqliteDb;
     db.exec(`CREATE VIRTUAL TABLE docs USING fts5(title, body, tokenize = 'unicode61 remove_diacritics 2')`);

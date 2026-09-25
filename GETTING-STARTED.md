@@ -16,13 +16,13 @@ AgentMesh runs on Node.js.
 
 ## 2. Get AgentMesh (one time)
 
-1. Open **https://github.com/Luisv8181/agentmesh**
-2. Click the green **Code** button, then **Download ZIP**.
-3. Right-click the downloaded ZIP, choose **Extract All…**, and put it somewhere easy, like your Documents folder.
+1. Click this link to download it: **https://github.com/Luisv8181/agentmesh/archive/refs/heads/main.zip**
+2. Open your **Downloads** folder, right-click **agentmesh-main.zip**, choose **Extract All…**, and click **Extract**. (Your Documents folder is a good place for it.)
+3. Open the new **agentmesh-main** folder.
 
 ## 3. Start AgentMesh
 
-Open the extracted folder and double-click **Start AgentMesh**.
+In the **agentmesh-main** folder, double-click **Start AgentMesh**.
 
 - The first time, a black window appears and sets things up. This takes about a minute.
 - Your browser then opens the AgentMesh page.
@@ -39,7 +39,7 @@ AgentMesh first asks **how you use AI**:
 
 Not sure? Choose free. You can change it any time in **Settings**. Then it walks you through the rest, one step at a time:
 
-**Step 1: pick your project folder.** This is the folder the assistants are allowed to work in. Click **Change**, then **Browse…**.
+**Step 1: pick your project folder.** This is the folder the assistants are allowed to work in. Click **Change**, then **Browse…**. Don’t have one yet? Type a name under *“Don’t have a project folder yet?”* and click **Create**.
 
 **Step 2: install at least one assistant.** Each one shows:
 

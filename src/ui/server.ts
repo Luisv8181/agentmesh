@@ -1,6 +1,7 @@
 import * as http from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import * as crypto from 'crypto';
 import * as cp from 'child_process';
 import { fileURLToPath } from 'url';
@@ -399,6 +400,18 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
       const body = await readJson(req);
       if (typeof body.path !== 'string' || !body.path.trim()) throw new HttpError(400, 'Paste a folder path first.');
       return { workspace: switchWorkspace(body.path) };
+    }
+
+    if (m === 'POST' && p === '/api/workspace/new') {
+      // For people who don't have a project folder yet: Documents\AgentMesh Projects\<name>.
+      const body = await readJson(req);
+      const name = (typeof body.name === 'string' ? body.name : '').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60) || 'My first project';
+      const docs = path.join(os.homedir(), 'Documents');
+      const base = path.join(fs.existsSync(docs) ? docs : os.homedir(), 'AgentMesh Projects');
+      let dir = path.join(base, name);
+      for (let i = 2; fs.existsSync(dir); i++) dir = path.join(base, `${name} (${i})`);
+      fs.mkdirSync(dir, { recursive: true });
+      return { workspace: switchWorkspace(dir) };
     }
 
     if (m === 'POST' && p === '/api/workspace/browse') {

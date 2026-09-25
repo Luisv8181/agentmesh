@@ -15,6 +15,10 @@ import { TaskStore } from '../state/task-store.js';
 import { ConfigStore } from '../state/config-store.js';
 import { startUiServer } from '../ui/server.js';
 import { AgentId } from '../types.js';
+import { spawnSync as spawnSyncForGit } from 'child_process';
+// Tests that need Git skip (with a reason) on PCs without it, so setup isn't blocked by them.
+const NEEDS_GIT = spawnSyncForGit('git', ['--version']).status === 0 ? {} : { skip: 'Git is not installed on this PC' };
+
 
 process.env.AGENTMESH_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'agentmesh-home-'));
 
@@ -120,7 +124,7 @@ function freshConfig(patch: Partial<ReturnType<ConfigStore['get']>> = {}): Confi
   return store;
 }
 
-test('Handoff does not commit anything unless autoCommit is turned on', async () => {
+test('Handoff does not commit anything unless autoCommit is turned on', NEEDS_GIT, async () => {
   const dir = gitRepo();
   fs.writeFileSync(path.join(dir, 'tracked.txt'), 'v2');
   fs.writeFileSync(path.join(dir, '.env'), 'SECRET=1');
@@ -136,7 +140,7 @@ test('Handoff does not commit anything unless autoCommit is turned on', async ()
   assert.strictEqual(commitCount(dir), 1, 'no checkpoint commit by default');
 });
 
-test('With autoCommit on, the checkpoint commits tracked changes but never untracked files like .env', async () => {
+test('With autoCommit on, the checkpoint commits tracked changes but never untracked files like .env', NEEDS_GIT, async () => {
   const dir = gitRepo();
   fs.writeFileSync(path.join(dir, 'tracked.txt'), 'v2');
   fs.writeFileSync(path.join(dir, '.env'), 'SECRET=1');

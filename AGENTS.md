@@ -36,7 +36,7 @@ Never try to do these yourself, and never ask them to paste the results into thi
 
 ### Steps
 
-1. **Check Node.js**: run `node --version`. It must be 20.3 or newer (22 LTS recommended).
+1. **Check Node.js**: run `node --version`. It must be 22.13 or newer (the current LTS is fine).
    If missing or old, tell the person to install the LTS "Windows Installer" from https://nodejs.org/en/download with default options, then **restart this IDE** (terminals only see newly installed programs after a restart).
 2. **Install and build** (in this repository folder): `npm install`, then `npm run build`, then `npm test`. All tests must pass. If they don't, stop and report the failing test names; don't "fix" tests.
 3. **See what's ready**: `node dist/cli/index.js status --json`. Read `readyAgents`, and each agent's `problem`. `nextSteps` lists exactly what the person needs to do, in plain language; relay it.
@@ -96,7 +96,7 @@ You must not:
 
 ## B. Developing AgentMesh
 
-- TypeScript (strict), Node ≥ 20.3, no framework. `npm run build` compiles to `dist/` and copies `src/ui/dashboard.html`. `npm test` runs `node --test` on `dist/test/*.test.js`.
+- TypeScript (strict), Node ≥ 22.13 (built-in SQLite), no framework. `npm run build` compiles to `dist/` and copies `src/ui/dashboard.html`. `npm test` runs `node --test` on `dist/test/*.test.js`.
 - Layout: `src/adapters/` (one file per CLI; spawn without a shell via `resolve-command.ts`), `src/router/` (selection, failover, rate limits, error hints), `src/state/` (tasks per project in `<project>/.agentmesh/`, config and cooldowns per user in `~/.agentmesh/`), `src/ui/` (local server + single-file dashboard), `src/workspace/` (git, change tracking, Ollama project snapshot).
 - Invariants, each covered by a test in `src/test/hardening.test.ts`; don't weaken them:
   - Never run agent CLIs through `cmd.exe`/a shell (prompts contain `&`, `|`, newlines).

@@ -17,11 +17,13 @@ if errorlevel 1 (
   exit /b 1
 )
 
-node -e "const [a,b]=process.versions.node.split('.').map(Number); process.exit(a>20||(a===20&&b>=3)?0:1)"
+rem Needs Node 22.13+ (built-in SQLite, used for search).
+node -e "const [a,b]=process.versions.node.split('.').map(Number); process.exit(a>22||(a===22&&b>=13)?0:1)"
 if errorlevel 1 (
   echo.
   echo  Your Node.js is too old for AgentMesh. Please install the current "LTS" version
-  echo  from the page that just opened, then double-click "Start AgentMesh" again.
+  echo  from the page that just opened (run it with the default options),
+  echo  then double-click "Start AgentMesh" again.
   echo.
   start "" "https://nodejs.org/en/download"
   pause
@@ -43,7 +45,8 @@ if errorlevel 1 (
   goto :fail
 )
 
-node dist\cli\index.js ui --recent
+rem Hide Node's "experimental feature" notices: they look like errors but aren't.
+node --disable-warning=ExperimentalWarning dist\cli\index.js ui --recent
 if errorlevel 1 pause
 exit /b 0
 
