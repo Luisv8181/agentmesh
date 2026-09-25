@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import { v4 as uuidv4 } from 'uuid';
 import { AgentSelector } from '../router/agent-selector.js';
 import { TaskStore } from '../state/task-store.js';
-import { ConfigStore, AgentMeshConfig, ALL_AGENTS } from '../state/config-store.js';
+import { ConfigStore, AgentMeshConfig, ALL_AGENTS, agentMeshHome } from '../state/config-store.js';
 import { globalUsageMonitor } from '../router/usage-monitor.js';
 import { globalTokenTracker } from '../router/token-tracker.js';
 import { clearResolveCache, refreshPathFromSystem } from '../adapters/resolve-command.js';
@@ -20,6 +20,8 @@ import { AgentId, HandoffReason, RouteDecision, WorkExecutionResult } from '../t
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MAX_BODY_BYTES = 1_000_000;
 const MAX_LIVE_OUTPUT = 200_000;
+/** The unpacked browser extension ships next to dist/ in the repo. */
+const EXTENSION_DIR = path.resolve(__dirname, '..', '..', 'extension');
 
 export interface UiServerInstance {
   server: http.Server;
@@ -310,6 +312,19 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
       return { query: q, hits: searchIndex.search.search(q) };
     }
 
+    // ---- Browser extension pairing (dashboard only) ----
+    if (m === 'GET' && p === '/api/extension') {
+      return { code: `AM1-${port}-${extensionToken()}`, folder: EXTENSION_DIR, installed: fs.existsSync(path.join(EXTENSION_DIR, 'manifest.json')) };
+    }
+    if (m === 'POST' && p === '/api/extension/open-folder') {
+      const opener = process.platform === 'win32' ? 'explorer.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';
+      cp.spawn(opener, [EXTENSION_DIR], { stdio: 'ignore', detached: true }).unref();
+      return { ok: true };
+    }
+    if (m === 'POST' && p === '/api/extension/reset') {
+      return { code: `AM1-${port}-${extensionToken(true)}` };
+    }
+
     // ---- GitHub (for people who don't use git) ----
     if (m === 'GET' && p === '/api/github') return githubStatus(selector.workspaceRoot);
     if (m === 'POST' && p === '/api/github/save') {
@@ -427,6 +442,52 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
         return;
       }
 
+      // Browser extension (side panel): its own pairing token, and only the baton actions.
+      if (url.pathname.startsWith('/api/ext/')) {
+        const extOrigin = req.headers.origin;
+        if (extOrigin !== undefined && !EXTENSION_ORIGIN.test(extOrigin)) {
+          send(403, { error: 'Only the AgentMesh browser extension can use this.' });
+          return;
+        }
+        if (extOrigin) {
+          res.setHeader('Access-Control-Allow-Origin', extOrigin);
+          res.setHeader('Vary', 'Origin');
+        }
+        if (req.method === 'OPTIONS') {
+          res.setHeader('Access-Control-Allow-Methods', 'GET, POST');
+          res.setHeader('Access-Control-Allow-Headers', 'content-type, x-agentmesh-ext');
+          res.writeHead(204);
+          res.end();
+          return;
+        }
+        const presentedExt = req.headers['x-agentmesh-ext'];
+        if (typeof presentedExt !== 'string' || !safeEqual(presentedExt, extensionToken())) {
+          send(401, { error: 'Not connected. Copy the code again from AgentMesh → AI websites → Connect your browser.' });
+          return;
+        }
+        if (req.method === 'POST' && !(req.headers['content-type'] ?? '').startsWith('application/json')) {
+          send(415, { error: 'Content-Type must be application/json' });
+          return;
+        }
+        const target = EXT_ROUTES[`${req.method} ${url.pathname}`];
+        if (!target) {
+          send(404, { error: 'Not found' });
+          return;
+        }
+        try {
+          if (target === 'state') {
+            const baton = new BatonStore(selector.workspaceRoot);
+            send(200, { project: path.basename(selector.workspaceRoot), knowledge: baton.knowledge(), latestBrief: baton.latestBrief()?.at ?? null });
+          } else {
+            send(200, await route(req, new URL(target, url)));
+          }
+        } catch (err) {
+          if (err instanceof HttpError) send(err.status, { error: err.message });
+          else send(500, { error: err instanceof Error ? err.message : String(err) });
+        }
+        return;
+      }
+
       const origin = req.headers.origin;
       if (origin && !allowedOrigins.has(origin)) {
         send(403, { error: 'Cross-origin requests are not allowed' });
@@ -510,6 +571,34 @@ export function suggestMode(agents: { id: string; available: boolean; hint?: str
     return { mode: 'subscriptions', reason: `We found ${names} on this PC.` };
   }
   return { mode: 'free', reason: 'No paid AI tools found on this PC.' };
+}
+
+const EXTENSION_ORIGIN = /^(chrome|moz)-extension:\/\/[a-z0-9-]+$/i;
+
+/** What the extension's pairing token can reach: the baton actions and nothing else. */
+const EXT_ROUTES: Record<string, string> = {
+  'GET /api/ext/state': 'state',
+  'POST /api/ext/brief': '/api/baton/brief',
+  'POST /api/ext/continue': '/api/baton/continue',
+  'POST /api/ext/pass': '/api/baton/pass',
+  'POST /api/ext/open-folder': '/api/workspace/open'
+};
+
+/** Long-lived pairing token for the browser extension, kept in ~/.agentmesh so pairing survives restarts. */
+export function extensionToken(reset = false): string {
+  const file = path.join(agentMeshHome(), 'extension-token');
+  if (!reset) {
+    try {
+      const t = fs.readFileSync(file, 'utf8').trim();
+      if (t.length >= 32) return t;
+    } catch {
+      // not paired yet
+    }
+  }
+  const t = crypto.randomBytes(24).toString('base64url');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, t, { mode: 0o600 });
+  return t;
 }
 
 function safeEqual(a: string, b: string): boolean {

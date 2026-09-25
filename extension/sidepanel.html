@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentMesh</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --surface: #fff; --surface-2: #f2f2ef; --text: #18181b; --muted: #71717a; --border: #e7e5e4;
+    --accent: #2563eb; --accent-soft: #eff4ff; --ok: #16a34a; --ok-soft: #ecfdf3; --warn: #b45309; --warn-soft: #fff7e6; --err: #dc2626; --err-soft: #fef2f2;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, monospace; color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f0f10; --surface: #18181b; --surface-2: #1f1f23; --text: #f4f4f5; --muted: #a1a1aa; --border: #2a2a2f;
+      --accent: #60a5fa; --accent-soft: #172033; --ok: #4ade80; --ok-soft: #10251a; --warn: #fbbf24; --warn-soft: #2a2110; --err: #f87171; --err-soft: #2b1414; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 13.5px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; }
+  [hidden] { display: none !important; }
+  main { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  header { display: flex; align-items: center; gap: 8px; }
+  header b { font-size: 15px; }
+  .muted { color: var(--muted); } .small { font-size: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; background: var(--muted); }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.off { background: transparent; border: 1.5px dashed var(--muted); }
+  .dot.here { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); background: var(--accent); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 999px; padding: 7px 14px; cursor: pointer; font: inherit; font-weight: 500; width: 100%; }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .stack { display: flex; flex-direction: column; gap: 8px; }
+  .sites { display: flex; flex-direction: column; gap: 6px; }
+  .site { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; }
+  .site b { font-size: 13px; }
+  .status { font-size: 12.5px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); }
+  .status.ok { background: var(--ok-soft); } .status.err { background: var(--err-soft); } .status.wait { background: var(--accent-soft); }
+  .file { font-family: var(--mono); font-size: 11.5px; background: var(--surface-2); border-radius: 6px; padding: 1px 6px; }
+  .files { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  input.text { width: 100%; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 8px; padding: 8px 10px; font: 12.5px var(--mono); }
+  h2 { font-size: 14px; margin: 0 0 6px; }
+  ol { margin: 6px 0 0; padding-left: 1.2em; } li { margin: 3px 0; }
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @keyframes pulse { 50% { opacity: .4; } } .pulse { animation: pulse 1.2s infinite; }
+  @media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+</style>
+</head>
+<body>
+<main>
+  <header><b>AgentMesh</b><span class="dot" id="conn"></span><span class="small muted" id="project"></span></header>
+
+  <!-- Pairing (first run) -->
+  <section id="pair" class="card" hidden>
+    <h2>Connect to AgentMesh</h2>
+    <ol class="small">
+      <li>Open AgentMesh on your computer (double-click <b>Start AgentMesh</b>).</li>
+      <li>Go to <b>🔁 AI websites → Connect your browser</b> and click <b>Copy code</b>.</li>
+      <li>Paste it here:</li>
+    </ol>
+    <div class="stack" style="margin-top:8px">
+      <input class="text" id="pair-code" placeholder="AM1-3333-…" autocomplete="off" spellcheck="false">
+      <button class="btn primary" id="pair-btn">Connect</button>
+      <div class="status err" id="pair-error" hidden></div>
+    </div>
+  </section>
+
+  <!-- Main -->
+  <section id="main" class="stack" hidden>
+    <div class="card">
+      <div id="here" class="small"></div>
+      <div class="sites" id="sites" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card stack" id="wrap-card">
+      <h2 style="margin:0">Leaving this site?</h2>
+      <p class="small muted" style="margin:0">AgentMesh sends <b>mesh wrap</b> here and saves the handoff note when the reply is done.</p>
+      <button class="btn primary" id="wrap-btn">Wrap up here</button>
+      <div class="status" id="wrap-status" hidden></div>
+    </div>
+
+    <div class="card stack">
+      <h2 style="margin:0">Continue in</h2>
+      <div class="stack" id="continue-btns"></div>
+      <div id="next" class="stack" hidden>
+        <div class="status" id="next-status"></div>
+        <div id="next-files"></div>
+        <button class="btn" id="open-folder" hidden>Open project folder</button>
+        <button class="btn primary" id="done-btn">Done, I sent it</button>
+      </div>
+    </div>
+
+    <div class="row small" style="justify-content:space-between">
+      <a href="#" id="open-dashboard">Open dashboard</a>
+      <a href="#" id="disconnect" class="muted">Disconnect</a>
+    </div>
+  </section>
+
+  <section id="offline" class="card" hidden>
+    <h2>AgentMesh isn’t running</h2>
+    <p class="small" style="margin:0">Double-click <b>Start AgentMesh</b> on your computer, then press Retry.</p>
+    <div class="stack" style="margin-top:10px"><button class="btn primary" id="retry">Retry</button></div>
+  </section>
+</main>
+<script src="lib.js"></script>
+<script src="sidepanel.js"></script>
+</body>
+</html>

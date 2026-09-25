@@ -80,9 +80,15 @@ When you work on something in an AI website and it runs out of free messages, yo
 3. Copy the message AgentMesh gives you, open the next site, paste it, and attach the files it lists (use the site's paperclip button).
 4. Click **Done, I pasted it**. AgentMesh remembers what each site has seen, so next time it only asks you to attach files that are new or changed.
 
+**Even easier: the AgentMesh browser panel.** In 🔁 AI websites, open *“Skip the copy and paste”* and follow the four steps (Chrome or Edge). Then a panel sits next to ChatGPT, Claude or Gemini: click **Wrap up here** when you're leaving a site and **Continue in…** to open the next one with your message already in the box. You only attach files and press Enter.
+
+**Put the project on GitHub (optional).** Click **Put on GitHub** under your project folder. After that, Claude and Gemini read your files straight from GitHub (Claude: *Sync*; Gemini: *Import code*), so there's nothing to attach one by one. Click **Save** whenever you want them to see your latest changes. Your `.env` and key files are never uploaded.
+
 If you use Antigravity, you can also just tell it "I'm switching from ChatGPT to Claude": it knows these steps and prepares everything for you. Files an AI gives you can be dropped onto the 🔁 screen; they're saved into a `from-ai` folder in your project.
 
 ## Good to know
+
+- **Search everything** with **Ctrl + K**: decisions from handoff notes, what each assistant did, and text in your files.
 
 - **This PC only** (switch at the top right) uses only Ollama, which runs on your own computer. Your paid subscriptions are never touched in this mode. Ollama can read your project and suggest changes, but it can't edit files itself.
 - **Settings** lets you choose which assistants to use and in what order, and whether they may edit files at all.
@@ -100,4 +106,5 @@ If you use Antigravity, you can also just tell it "I'm switching from ChatGPT to
 | "No agent could finish this" | The message lists why for each assistant. Usually one needs setting up or is resting after a limit. |
 | An assistant says **Needs sign-in** even though you signed in | Signing in to the desktop app doesn't count. Sign in from PowerShell: `claude auth login` (Claude) or `codex login` (Codex). |
 | An assistant says **Needs update** | Run its install command again from **Set up agents**, then press **Check again**. |
+| The browser panel says “Not connected” | In AgentMesh → 🔁 AI websites → *Skip the copy and paste*, copy the code again and paste it into the panel. |
 | An assistant says **Out of credits** | Its default model needs credits your plan doesn't include. In **Settings → Models**, type a model your plan covers (for Claude: `sonnet` or `opus`). |

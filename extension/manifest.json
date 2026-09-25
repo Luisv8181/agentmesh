@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "AgentMesh",
+  "version": "0.1.0",
+  "description": "Pass your work between ChatGPT, Claude and Gemini without copy and paste. Works with the AgentMesh app on your computer.",
+  "minimum_chrome_version": "116",
+  "permissions": ["sidePanel", "storage", "tabs", "scripting"],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "https://chatgpt.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*"
+  ],
+  "icons": { "16": "icon-16.png", "32": "icon-32.png", "48": "icon-48.png", "128": "icon-128.png" },
+  "background": { "service_worker": "background.js" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "action": { "default_title": "Open AgentMesh", "default_icon": { "16": "icon-16.png", "32": "icon-32.png" } },
+  "content_scripts": [
+    {
+      "matches": ["https://chatgpt.com/*", "https://claude.ai/*", "https://gemini.google.com/*"],
+      "js": ["lib.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

@@ -60,13 +60,18 @@ Instead of passing conversation transcripts, **AgentMesh** passes the **State of
 AgentMesh is organized around five core modules:
 
 * **`router/`**: Rate-limit awareness and fallback dispatcher. Includes **`usage-monitor.ts`** for real-time telemetry, sliding-window request counting, and Server-Sent Events (SSE) broadcasting.
-* **`adapters/`**: Headless CLI execution wrappers for:
-  * **Claude Code** (`claude -p`)
-  * **OpenAI Codex** (`codex exec --skip-git-repo-check -`)
-  * **Google Antigravity CLI** (`agy --non-interactive -p`)
-  * **Google Gemini** (`gemini --skip-trust -p`)
+* **`adapters/`**: Headless CLI execution wrappers, spawned without a shell (so prompts arrive intact on Windows), with edit-only permissions:
+  * **Claude Code** (`claude -p --permission-mode acceptEdits`, prompt on stdin)
+  * **OpenAI Codex** (`codex exec -s workspace-write -`)
+  * **Google Antigravity CLI** (`agy --mode accept-edits --add-dir <project> -p`)
+  * **GitHub Copilot CLI** (`copilot -p … -s --no-ask-user --allow-tool write`)
+  * **Google Gemini** (`gemini --approval-mode auto_edit -p`)
   * **OpenCode AI** (`opencode run`)
-  * **Local Ollama** (HTTP `:11434` offline fallback)
+  * **Local Ollama** (HTTP `:11434`, read-only project snapshot)
+  Each reports sign-in state through the CLI's own local status command, so “Ready” means signed in.
+* **`baton/`**: The AI-website relay (`mesh wrap` / `mesh start`), handoff notes, and the ledger of what ChatGPT, Claude and Gemini each know.
+* **`search/`**: Full-text search (SQLite FTS5 built into Node) over notes, agent steps and project files.
+* **`extension/`**: Chrome/Edge side panel that sits next to the AI websites (no copy and paste).
 * **`state/`**: Persistent task store (`.agentmesh/tasks/`) and the **Handoff Protocol** that generates structured work briefs.
 * **`workspace/`**: Git coordinator that snapshots workspace changes and records handoff commits (`[agentmesh] handoff: from -> to`).
 * **`ui/`**: Embedded Fleet Command Center web dashboard (`dashboard.html`) and real-time SSE server (`agentmesh ui`).
@@ -103,6 +108,9 @@ Built for people who don't live in a terminal:
 * **Tasks**: follow-up instructions stay on the same task and each agent is told what earlier steps did. Switch between tasks or mark them finished.
 * **Guided setup**: detects which CLIs are installed, shows the official install command with a copy button, how to sign in, and an "Ask an AI to help" prompt for each one. **Check again** picks up newly installed CLIs without a restart.
 * **Settings**: agent order (and on/off), whether agents may edit files, opt-in git checkpoints, Ollama model, today's Claude/Codex token usage.
+* **AI websites relay**: magic words for ChatGPT, Claude and Gemini, handoff notes, what each site knows, which files to attach. With the **browser panel**, wrapping up and continuing are one click each.
+* **GitHub** (optional): *Put on GitHub* and *Save*; Claude and Gemini then read the project from GitHub instead of attachments.
+* **Search** (Ctrl+K) across notes, agent steps and files.
 * Light and dark themes, works at phone width, respects reduced motion.
 
 **Security.** The dashboard only listens on `127.0.0.1`. Every API call needs a random per-launch token, cross-origin requests and foreign `Host` headers are rejected (no drive-by requests from websites, no DNS rebinding), and the page can't be framed.

@@ -22,7 +22,8 @@ Never try to do these yourself, and never ask them to paste the results into thi
 - **API keys.** Tell them where to get one and where to enter it (in the tool's own prompt). Never ask them to paste a key into chat, never write a key into a file, `.env`, or environment variable.
 - **Windows security prompts** ("Windows protected your PC" / "Run anyway").
 - **Starting AgentMesh.** They double-click `Start AgentMesh.cmd`. It opens the browser and must stay open; if you run it, your terminal will hang.
-- **Anything in the AgentMesh dashboard** (choosing the project folder, Settings, Free local mode). Do not click through it with browser tools.
+- **Anything in the AgentMesh dashboard** (choosing the project folder, Settings, “This PC only”). Do not click through it with browser tools.
+- **Installing the browser panel** (Chrome/Edge → Developer mode → Load unpacked → the `extension` folder) and pasting its pairing code. Never read, copy or print the pairing code yourself.
 
 ### Never do these, even if an error message suggests it
 
@@ -31,7 +32,7 @@ Never try to do these yourself, and never ask them to paste the results into thi
 - Never run a real task through the paid or quota-limited agents "to test it" without asking first. It spends their limits.
 - Never run AgentMesh with this repository as the project folder. Agents would edit AgentMesh itself.
 - Never install things globally beyond the steps below without asking. Never run anything as Administrator.
-- Never push, publish, or commit on the person's behalf.
+- Never push, publish, or commit on the person's behalf unless they ask (see GitHub in section C).
 
 ### Steps
 
