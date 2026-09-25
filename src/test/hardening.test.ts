@@ -563,3 +563,19 @@ test('Copilot adapter: prompt intact, may edit files but not run commands, never
   assert.ok(!read.args.includes('--allow-tool'), 'read-only grants no tools');
   assert.ok(!edit.args.some((a: string) => /allow-all|yolo/.test(a)), 'never all-permissions');
 });
+
+test('Launcher (.cmd): CRLF endings, and no unescaped brackets in echo lines inside if-blocks', () => {
+  // A ")" inside an if ( … ) block ends the block early: the launcher then told everyone their
+  // Node.js was too old and quit. Caught by a from-ZIP rehearsal; this keeps it from coming back.
+  const raw = fs.readFileSync(new URL('../../Start AgentMesh.cmd', import.meta.url), 'utf8');
+  assert.ok(!/[^\r]\n/.test(raw), 'Start AgentMesh.cmd must use CRLF line endings');
+  let depth = 0;
+  raw.split('\r\n').forEach((line, i) => {
+    const t = line.trim();
+    if (depth > 0 && /^echo\b/i.test(t)) {
+      assert.ok(!/(^|[^^])[()]/.test(t.slice(4)), `line ${i + 1}: brackets in "${t}" would close the if-block`);
+    }
+    if (/\($/.test(t)) depth++;
+    if (/^\)/.test(t)) depth--;
+  });
+});

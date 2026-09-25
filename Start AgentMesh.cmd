@@ -22,7 +22,7 @@ node -e "const [a,b]=process.versions.node.split('.').map(Number); process.exit(
 if errorlevel 1 (
   echo.
   echo  Your Node.js is too old for AgentMesh. Please install the current "LTS" version
-  echo  from the page that just opened (run it with the default options),
+  echo  from the page that just opened, run it with the default options,
   echo  then double-click "Start AgentMesh" again.
   echo.
   start "" "https://nodejs.org/en/download"
