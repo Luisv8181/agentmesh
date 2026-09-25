@@ -179,6 +179,11 @@
 
   .scrim { display: none; }
 
+  /* GitHub */
+  .gh-line { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
+  .gh-line a, .gh-line button.linkish { font-size: 12.5px; padding: 0; }
+  .gh-route { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; background: var(--accent-soft); margin-top: 8px; }
+
   /* Search (Spotlight-style) */
   .search-field { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; border: 1px solid var(--border); background: var(--surface); border-radius: 10px; padding: 7px 10px; cursor: pointer; color: var(--muted); font-size: 13px; text-align: left; }
   .search-field:hover { border-color: color-mix(in srgb, var(--text) 25%, var(--border)); color: var(--text); }
@@ -279,6 +284,7 @@
           <button class="btn sm" data-action="open-project">Change</button>
           <button class="btn sm ghost" data-action="open-folder">Open</button>
         </div>
+        <div id="gh-line" class="gh-line" hidden></div>
       </div>
     </div>
 
@@ -514,6 +520,12 @@
   </div>
 </dialog>
 
+<!-- GitHub -->
+<dialog id="dlg-github" aria-labelledby="dlg-github-title">
+  <div class="dlg-head"><h2 id="dlg-github-title">GitHub</h2><span class="spacer"></span><button class="btn sm ghost" data-close>Close</button></div>
+  <div class="dlg-body" id="gh-body"></div>
+</dialog>
+
 <!-- Search (Spotlight-style) -->
 <dialog id="dlg-search" class="search-dlg" aria-label="Search this project">
   <div class="search-top">
@@ -596,6 +608,7 @@
     state.data = data;
     if (data.run && data.run.runId !== state.dismissed && (!state.run || state.run.runId === data.run.runId || data.run.status === 'running')) state.run = data.run;
     state.task = data.currentTaskId ? await api(`/api/tasks/${data.currentTaskId}`) : null;
+    state.github = await api('/api/github').catch(() => state.github);
     if (data.config.mode === 'free' || !$('#welcome').hidden) state.baton = await api('/api/baton').catch(() => state.baton);
     render();
   }
@@ -653,6 +666,7 @@
     renderNotices();
     renderModeUI();
     renderWelcome();
+    renderGitHubLine();
   }
 
   function renderPills() {
@@ -921,6 +935,67 @@
     if ($('#dlg-settings').open) renderSettings();
   }
 
+  // ---------- GitHub ----------
+  function renderGitHubLine() {
+    const g = state.github;
+    const el = $('#gh-line');
+    el.hidden = !g || !g.gitInstalled;
+    if (el.hidden) return;
+    if (!g.webUrl) {
+      el.innerHTML = `<span class="muted">Not on GitHub</span><span class="spacer"></span><button class="linkish" data-action="open-github" style="color:var(--accent)">Put on GitHub</button>`;
+    } else if (g.inSync) {
+      el.innerHTML = `<span style="color:var(--ok)">✓</span> <a href="${esc(g.webUrl)}" target="_blank" rel="noopener">Saved to GitHub</a>`;
+    } else {
+      const n = g.unsaved.length;
+      el.innerHTML = `<span class="dot warn"></span><span>${n ? `${n} unsaved change${n === 1 ? '' : 's'}` : 'Not uploaded yet'}</span><span class="spacer"></span><button class="btn sm" data-action="github-save">Save</button>`;
+    }
+  }
+  function renderGitHubDialog() {
+    const g = state.github;
+    const body = $('#gh-body');
+    if (!g?.gitInstalled) {
+      body.innerHTML = `<p style="margin:0">GitHub needs <b>Git for Windows</b> on this PC. Install it with the default options, then reopen this.</p>
+        <div><a class="btn primary" href="https://git-scm.com/downloads/win" target="_blank" rel="noopener">Download Git for Windows ↗</a></div>`;
+      return;
+    }
+    if (!g.webUrl) {
+      body.innerHTML = `<div><h1 style="font-size:20px">Put this project on GitHub</h1>
+        <p class="muted" style="margin:6px 0 0">Free and private. Once it’s there:</p>
+        <ul class="small" style="margin:8px 0 0;padding-left:1.2em;line-height:1.7">
+          <li><b>Claude and Gemini read your files directly</b> (Sync / Import code), with no attaching one by one.</li>
+          <li>Every save is kept, so you can always go back.</li>
+          <li>Your <code>.env</code> and key files are never uploaded.</li></ul></div>
+        <ol class="steps">
+          <li>Have a GitHub account. <a href="https://github.com/signup" target="_blank" rel="noopener">Create one free ↗</a></li>
+          <li><a href="https://github.com/new" target="_blank" rel="noopener">Create a new repository ↗</a>: give it a name, choose <b>Private</b>, and leave <b>“Add a README” unticked</b>.</li>
+          <li>Copy its link from the address bar and paste it here:
+            <div class="row" style="margin-top:6px"><input class="text" id="gh-url" placeholder="https://github.com/your-name/your-project"><button class="btn primary" data-action="github-connect">Connect &amp; upload</button></div>
+            <div class="small muted" style="margin-top:6px">The first upload opens a GitHub sign-in window. Sign in there, and AgentMesh finishes by itself.</div></li>
+        </ol>`;
+      return;
+    }
+    const n = g.unsaved.length;
+    body.innerHTML = `<div class="row"><div style="flex:1;min-width:0"><b>Connected</b><div class="small" style="overflow-wrap:anywhere"><a href="${esc(g.webUrl)}" target="_blank" rel="noopener">${esc(g.webUrl)}</a></div></div>
+      <button class="btn primary" data-action="github-save" ${g.inSync ? 'disabled' : ''}>${g.inSync ? 'All saved' : 'Save to GitHub'}</button></div>
+      ${g.inSync ? '<p class="small muted" style="margin:0">Everything is saved. Claude and Gemini can read the latest version.</p>'
+        : `<div><div class="section-title">${n ? `Will be saved (${n})` : 'Saved here, not uploaded yet'}</div><div class="files">${g.unsaved.slice(0, 40).map((f) => `<span class="file">${esc(f)}</span>`).join('')}${n > 40 ? ` <span class="small muted">+${n - 40} more</span>` : ''}</div></div>`}
+      ${g.skipped.length ? `<p class="small muted" style="margin:0">Never uploaded (look like secrets or are too large): ${g.skipped.map(esc).join(', ')}</p>` : ''}`;
+  }
+  async function githubSave() {
+    const btns = document.querySelectorAll('[data-action="github-save"]');
+    btns.forEach((b) => { b.disabled = true; b.textContent = 'Saving…'; });
+    try {
+      const r = await api('/api/github/save', {});
+      state.github = r.status;
+      if (r.ok) toast(r.committed ? 'Saved to GitHub.' : 'Already up to date on GitHub.');
+      else toast(r.error, 'err');
+    } finally {
+      renderGitHubLine();
+      if ($('#dlg-github').open) renderGitHubDialog();
+      if (state.batonNext) await showContinue();
+    }
+  }
+
   // ---------- Search ----------
   const search = { hits: [], sel: 0, timer: null, seq: 0 };
   const KIND_LABEL = { note: 'Handoff notes', step: 'Agent steps', file: 'Files' };
@@ -1154,8 +1229,12 @@
     state.batonNext = { to, ...next };
     $('#baton-message').textContent = next.message;
     $('#baton-open-site').href = state.baton.sites[to].url;
-    $('#baton-attach-hint').textContent = next.files.length ? ', and attach the files below' : '';
-    $('#baton-files').innerHTML = next.files.length
+    $('#baton-attach-hint').textContent = next.github ? '' : next.files.length ? ', and attach the files below' : '';
+    $('#baton-files').innerHTML = next.github
+      ? `<div class="gh-route"><b>📦 ${esc(siteName(to))} reads your project from GitHub</b><div class="small" style="margin-top:4px">${esc(next.github.how)}</div>
+          ${next.github.inSync ? '<div class="small" style="margin-top:6px;color:var(--ok)">✓ Everything is saved to GitHub.</div>'
+            : `<div class="row small" style="margin-top:8px"><span class="dot warn"></span><span style="flex:1">Save your latest changes first so ${esc(siteName(to))} sees them.</span><button class="btn sm primary" data-action="github-save">Save to GitHub</button></div>`}</div>`
+      : next.files.length
       ? `<div class="small muted">Attach these (use the paperclip in ${esc(siteName(to))}):</div>` + next.files.map((f) =>
           `<label class="row small" style="padding:3px 0"><input type="checkbox" data-baton-file="${esc(f.path)}" checked> <span class="file">${esc(f.path)}</span> <span class="muted">${esc(f.reason)}</span></label>`).join('')
       : `<div class="small muted">${esc(siteName(to))} already has every file it needs.</div>`;
@@ -1265,12 +1344,13 @@
     }
   }
 
-  const dialogs = { baton: '#dlg-baton', project: '#dlg-project', setup: '#dlg-setup', settings: '#dlg-settings', activity: '#dlg-activity' };
+  const dialogs = { github: '#dlg-github', baton: '#dlg-baton', project: '#dlg-project', setup: '#dlg-setup', settings: '#dlg-settings', activity: '#dlg-activity' };
   function openDialog(name) {
     closeDrawer();
     if (name === 'setup') renderSetup();
     if (name === 'settings') renderSettings();
     if (name === 'activity') renderActivity();
+    if (name === 'github') renderGitHubDialog();
     if (name === 'baton') { $('#baton-step2').hidden = true; state.batonNext = null; loadBaton().catch((e) => toast(e.message, 'err')); }
     if (name === 'project') {
       const recent = (state.data.config.recentWorkspaces || []).filter((p) => p !== state.data.workspace);
@@ -1307,6 +1387,18 @@
     'open-setup': () => openDialog('setup'),
     'open-baton': () => openDialog('baton'),
     'open-search': () => openSearch(),
+    'open-github': () => openDialog('github'),
+    'github-save': () => act(githubSave),
+    'github-connect': (el) => act(async () => {
+      const url = $('#gh-url').value.trim();
+      if (!url) { toast('Paste your repository link first.'); return; }
+      el.disabled = true; el.textContent = 'Uploading… (sign in if a window opens)';
+      try {
+        const r = await api('/api/github/connect', { url });
+        state.github = r.status;
+        if (r.ok) toast('Your project is on GitHub.'); else toast(r.error, 'err');
+      } finally { renderGitHubDialog(); renderGitHubLine(); }
+    }),
     'search-open': (el) => act(() => openHit(Number(el.dataset.i))),
     'welcome-choose': (el) => { welcome.choice = el.dataset.mode; renderWelcome(); },
     'welcome-next': () => act(async () => {
@@ -1341,7 +1433,7 @@
     'baton-copy-message': () => navigator.clipboard.writeText(state.batonNext.message).then(() => toast(`Copied. Paste it into ${siteName(state.batonNext.to)}.`)),
     'baton-passed': () => act(async () => {
       const files = [...document.querySelectorAll('[data-baton-file]:checked')].map((el) => el.dataset.batonFile);
-      await api('/api/baton/pass', { to: state.batonNext.to, files });
+      await api('/api/baton/pass', { to: state.batonNext.to, files, viaGitHub: !!state.batonNext.github });
       $('#baton-step2').hidden = true;
       toast(`${siteName(state.batonNext.to)} is up to date. Keep working there; type mesh wrap when you need to switch again.`);
       state.batonNext = null;

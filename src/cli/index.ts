@@ -6,6 +6,7 @@ import { TaskStore } from '../state/task-store.js';
 import { ConfigStore } from '../state/config-store.js';
 import { BatonStore } from '../baton/baton-store.js';
 import { ProjectSearch } from '../search/project-search.js';
+import { githubStatus, saveToGitHub, connectGitHub } from '../workspace/github.js';
 import { PROTOCOL_TEXT, SITE_INFO, WEB_SITES, WebSite } from '../baton/protocol.js';
 import { AgentId } from '../types.js';
 import * as fs from 'fs';
@@ -244,6 +245,34 @@ program
     }
   });
 
+// GITHUB: for people who don't use git (see AGENTS.md: only on the person's request)
+const ghCmd = program.command('github').description('Put the project on GitHub and save changes there');
+const ghProject = (opt?: string) => {
+  const dir = opt ? path.resolve(opt) : new ConfigStore().get().recentWorkspaces.find((d) => fs.existsSync(d));
+  if (!dir) throw new Error('No project yet. Open AgentMesh and choose a project folder, or pass --project <folder>.');
+  console.error(chalk.dim(`Project: ${dir}`));
+  return dir;
+};
+ghCmd.command('status').option('--project <folder>').option('--json').description('Is the project on GitHub, and is everything saved?').action((opts) => {
+  const s = githubStatus(ghProject(opts.project));
+  if (opts.json) return console.log(JSON.stringify(s, null, 2));
+  if (!s.gitInstalled) return console.log('Git isn’t installed.');
+  if (!s.webUrl) return console.log('Not on GitHub yet.');
+  console.log(`${s.webUrl}
+${s.inSync ? chalk.green('✔ Everything is saved to GitHub.') : chalk.yellow(`${s.unsaved.length} unsaved change(s)${s.ahead ? `, ${s.ahead} not uploaded` : ''}.`)}`);
+  if (s.skipped.length) console.log(chalk.dim(`Never uploaded (secret-looking or too large): ${s.skipped.join(', ')}`));
+});
+ghCmd.command('save').option('--project <folder>').option('-m, --message <text>').description('Save changes to GitHub (never secrets)').action((opts) => {
+  const r = saveToGitHub(ghProject(opts.project), opts.message);
+  console.log(r.ok ? chalk.green(r.committed ? '✔ Saved to GitHub.' : '✔ Already up to date on GitHub.') : chalk.red(r.error ?? 'Failed'));
+  if (!r.ok) process.exitCode = 1;
+});
+ghCmd.command('connect <url>').option('--project <folder>').description('Connect to an EMPTY GitHub repository the person created, and upload the project').action((url: string, opts) => {
+  const r = connectGitHub(ghProject(opts.project), url);
+  console.log(r.ok ? chalk.green(`✔ Connected and uploaded: ${r.webUrl}`) : chalk.red(r.error ?? 'Failed'));
+  if (!r.ok) process.exitCode = 1;
+});
+
 // BATON: carry a project between ChatGPT, Claude and Gemini by hand (see AGENTS.md section C)
 const batonCmd = program.command('baton').description('Hand a project between AI websites (ChatGPT, Claude, Gemini)');
 const siteArg = (v: string): WebSite => {
@@ -322,8 +351,9 @@ batonCmd
   .requiredOption('--to <site>', 'chatgpt | claude | gemini')
   .argument('[files...]')
   .option('--project <folder>')
+  .option('--via-github', 'The site pulled the project from GitHub (Sync / Import code)')
   .action((files: string[], opts) => {
-    batonProject(opts.project).recordPass(siteArg(opts.to), files);
+    batonProject(opts.project).recordPass(siteArg(opts.to), files, !!opts.viaGithub);
     console.log(chalk.green(`✔ Recorded. ${SITE_INFO[opts.to as WebSite].name} is now up to date.`));
   });
 

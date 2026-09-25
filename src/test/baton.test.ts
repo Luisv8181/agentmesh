@@ -100,3 +100,26 @@ test('The site that wrote a brief already has its key files; a later change is f
   fs.writeFileSync(path.join(dir, 'styles.css'), 'body{color:brown}');
   assert.deepStrictEqual(store.suggestFiles('claude'), [{ path: 'styles.css', reason: 'changed since Claude last saw it' }]);
 });
+
+test('With the project on GitHub, Claude and Gemini get "Sync / Import code" instead of files; ChatGPT still gets files', async () => {
+  const cp = await import('child_process');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentmesh-baton-gh-'));
+  fs.writeFileSync(path.join(dir, 'index.html'), '<h1>v1</h1>');
+  fs.writeFileSync(path.join(dir, 'styles.css'), 'body{}');
+  cp.spawnSync('git', ['init', '-b', 'main'], { cwd: dir });
+  cp.spawnSync('git', ['remote', 'add', 'origin', 'https://github.com/rosa/bakery-site.git'], { cwd: dir });
+  const store = new BatonStore(dir);
+  store.addBrief('chatgpt', CHATGPT_REPLY);
+
+  const claude = store.continueOn('claude');
+  assert.strictEqual(claude.github?.webUrl, 'https://github.com/rosa/bakery-site');
+  assert.deepStrictEqual(claude.files, []);
+  assert.match(claude.github!.how, /Add from GitHub|Sync/);
+  assert.strictEqual(claude.github!.inSync, false, 'nothing uploaded yet');
+  assert.ok(claude.message.includes('github.com/rosa/bakery-site'));
+  assert.match(store.continueOn('gemini').github!.how, /Import code/);
+  assert.strictEqual(store.continueOn('chatgpt').github, undefined, 'ChatGPT free plan cannot read GitHub');
+
+  store.recordPass('claude', [], true);
+  assert.deepStrictEqual(store.suggestFiles('claude'), [], 'a GitHub pass counts every file as seen');
+});

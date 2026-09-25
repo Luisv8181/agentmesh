@@ -99,6 +99,8 @@ export interface ContinueInput {
   /** Work done by AgentMesh's own coding agents since that brief. */
   agentWork: { instruction: string; agent?: string; summary: string; files: string[] }[];
   attachments: string[];
+  /** When the next site reads the project from GitHub instead of attachments. */
+  github?: string;
 }
 
 export function buildContinueMessage(input: ContinueInput): string {
@@ -116,6 +118,10 @@ export function buildContinueMessage(input: ContinueInput): string {
           .join('\n')
     );
   }
-  parts.push(input.attachments.length ? `I'm attaching: ${input.attachments.join(', ')}` : 'No files attached this time.');
+  if (input.github) {
+    parts.push(`The project files are in my GitHub repository ${input.github}, which I've added here. Use it as the latest version of the files.`);
+  } else {
+    parts.push(input.attachments.length ? `I'm attaching: ${input.attachments.join(', ')}` : 'No files attached this time.');
+  }
   return parts.join('\n\n');
 }

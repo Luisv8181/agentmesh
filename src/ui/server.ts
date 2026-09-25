@@ -13,6 +13,7 @@ import { globalTokenTracker } from '../router/token-tracker.js';
 import { clearResolveCache, refreshPathFromSystem } from '../adapters/resolve-command.js';
 import { BatonStore } from '../baton/baton-store.js';
 import { ProjectSearch } from '../search/project-search.js';
+import { githubStatus, saveToGitHub, connectGitHub } from '../workspace/github.js';
 import { PROTOCOL_TEXT, SITE_INFO, WEB_SITES, WebSite } from '../baton/protocol.js';
 import { AgentId, HandoffReason, RouteDecision, WorkExecutionResult } from '../types.js';
 
@@ -309,6 +310,20 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
       return { query: q, hits: searchIndex.search.search(q) };
     }
 
+    // ---- GitHub (for people who don't use git) ----
+    if (m === 'GET' && p === '/api/github') return githubStatus(selector.workspaceRoot);
+    if (m === 'POST' && p === '/api/github/save') {
+      const body = await readJson(req);
+      const res = saveToGitHub(selector.workspaceRoot, typeof body.message === 'string' ? body.message.slice(0, 200) : undefined);
+      return { ...res, status: githubStatus(selector.workspaceRoot) };
+    }
+    if (m === 'POST' && p === '/api/github/connect') {
+      const body = await readJson(req);
+      if (typeof body.url !== 'string') throw new HttpError(400, 'Paste your GitHub repository link.');
+      const res = connectGitHub(selector.workspaceRoot, body.url);
+      return { ...res, status: githubStatus(selector.workspaceRoot) };
+    }
+
     // ---- Web-AI baton (ChatGPT / Claude / Gemini relay) ----
     const baton = new BatonStore(selector.workspaceRoot);
     const site = (v: unknown): WebSite => {
@@ -337,7 +352,7 @@ export function startUiServer(port = 3333, workspaceRoot = process.cwd(), safeMo
     if (m === 'POST' && p === '/api/baton/pass') {
       const body = await readJson(req);
       const files = Array.isArray(body.files) ? body.files.filter((f: unknown): f is string => typeof f === 'string') : [];
-      baton.recordPass(site(body.to), files.filter((f) => !f.includes('..')));
+      baton.recordPass(site(body.to), files.filter((f) => !f.includes('..')), body.viaGitHub === true);
       return { knowledge: baton.knowledge() };
     }
     if (m === 'POST' && p === '/api/baton/protocol') {

@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { snapshotFiles } from '../workspace/change-tracker.js';
 import { TaskStore } from '../state/task-store.js';
 import { WebSite, WEB_SITES, SITE_INFO, parseBrief, buildContinueMessage } from './protocol.js';
+import { githubStatus } from '../workspace/github.js';
 
 export interface Brief {
   id: string;
@@ -36,6 +37,21 @@ export interface FileSuggestion {
 }
 
 const MAX_HASH_BYTES = 2_000_000;
+
+export interface GitHubRoute {
+  webUrl: string;
+  /** Everything is saved to GitHub; if false, the person should Save to GitHub first. */
+  inSync: boolean;
+  unsaved: number;
+  /** Where to click on the site, in plain language. */
+  how: string;
+}
+
+/** Sites that can read a GitHub repository on their free plans (ChatGPT's connector is paid-only). */
+const GITHUB_READERS: Partial<Record<WebSite, (url: string) => string>> = {
+  claude: (url) => `In Claude, click + → Add from GitHub and pick ${url.replace('https://github.com/', '')}. Already added in this chat or Project? Click Sync instead.`,
+  gemini: (url) => `In Gemini, click + (Add files) → Import code and paste ${url}. Gemini takes a snapshot, so re-import after each save.`
+};
 
 /**
  * Per-project record of the web-chat relay: every brief, and what each AI website has been given.
@@ -106,13 +122,17 @@ export class BatonStore {
     this.save(data);
   }
 
-  /** Records that the person handed the latest brief (and these files) to a site. */
-  recordPass(to: WebSite, files: string[]): void {
+  /**
+   * Records that the person handed the latest brief (and these files) to a site. With viaGitHub the
+   * site pulled the whole saved project, so every project file counts as seen.
+   */
+  recordPass(to: WebSite, files: string[], viaGitHub = false): void {
     const data = this.load();
     const ledger = data.sites[to];
     ledger.lastPassAt = Date.now();
     ledger.briefId = data.briefs.at(-1)?.id ?? ledger.briefId;
-    for (const f of files) {
+    const seen = viaGitHub ? [...snapshotFiles(this.workspaceRoot).keys()] : files;
+    for (const f of seen) {
       const h = this.hashFile(f);
       if (h) ledger.files[f] = h;
     }
@@ -150,11 +170,18 @@ export class BatonStore {
     return [...out].map(([p, reason]) => ({ path: p, reason }));
   }
 
-  /** Everything the person needs to continue on `to`: the message to paste and the files to attach. */
-  continueOn(to: WebSite): { message: string; files: FileSuggestion[] } {
+  /**
+   * Everything the person needs to continue on `to`: the message to paste, and either the files to
+   * attach or, when the project is on GitHub and the site can read GitHub, how to pull it in there.
+   */
+  continueOn(to: WebSite): { message: string; files: FileSuggestion[]; github?: GitHubRoute } {
     const data = this.load();
     const brief = data.briefs.at(-1);
-    const files = this.suggestFiles(to);
+    const gh = GITHUB_READERS[to] ? githubStatus(this.workspaceRoot) : undefined;
+    const github: GitHubRoute | undefined = gh?.webUrl
+      ? { webUrl: gh.webUrl, inSync: gh.inSync, unsaved: gh.unsaved.length + (gh.ahead ? 1 : 0), how: GITHUB_READERS[to]!(gh.webUrl) }
+      : undefined;
+    const files = github ? [] : this.suggestFiles(to);
     const since = brief?.at ?? 0;
     const agentWork = new TaskStore(this.workspaceRoot)
       .listTasks()
@@ -169,9 +196,10 @@ export class BatonStore {
       projectName: brief?.project || path.basename(this.workspaceRoot),
       brief: brief && { text: brief.text, from: brief.from === 'agentmesh' ? 'AgentMesh' : SITE_INFO[brief.from].name, at: brief.at },
       agentWork,
-      attachments: files.map((f) => path.basename(f.path))
+      attachments: files.map((f) => path.basename(f.path)),
+      github: github?.webUrl
     });
-    return { message, files };
+    return { message, files, github };
   }
 
   /** What each site knows, in plain language. */

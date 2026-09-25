@@ -77,6 +77,12 @@ You may:
 - Prepare the next hop: `node dist/cli/index.js baton continue --to <site> --json` gives the exact message to paste and the files to attach. Read those files in the project if it helps you explain *why* each one matters, and suggest others from the project that the brief's next steps clearly need.
 - After the person confirms they pasted it: `node dist/cli/index.js baton passed --to <site> <files they actually attached...>`.
 
+GitHub (optional, makes Claude and Gemini read the project directly instead of file uploads):
+
+- `node dist/cli/index.js github status --json` shows whether the project is on GitHub and what's unsaved. When it is, `baton continue` returns a `github` route (Claude: Add from GitHub / Sync; Gemini: Import code) instead of files; ChatGPT's free plan can't read GitHub, so it still gets files.
+- Run `github save` only when the person asks to save. Run `github connect <url>` only with a link the person gives you, to an **empty** repository they created. Never create repositories, change their visibility, force-push, reset, or rewrite history. `.env`/key files are never uploaded; don't work around that.
+- After a pass where the site pulled from GitHub: `baton passed --to <site> --via-github`.
+
 You must not:
 
 - Open, sign in to, type into, or upload to ChatGPT, Claude or Gemini with browser tools. The person does every paste and upload; you prepare them.
