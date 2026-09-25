@@ -1205,6 +1205,7 @@
   async function loadBaton() {
     state.baton = await api('/api/baton');
     renderBaton();
+    renderWelcome();
     api('/api/extension').then((x) => { state.ext = x; $('#ext-code').textContent = x.code; }).catch(() => {});
   }
   function siteName(id) { return state.baton?.sites[id]?.name || id; }
@@ -1503,7 +1504,7 @@
       try { await api('/api/agents/recheck', {}); await refresh(); renderSetup(); $('#recheck-note').textContent = 'Checked just now.'; }
       finally { el.disabled = false; }
     }),
-    'finish-setup': () => act(async () => { await saveConfig({ onboarded: true }); $('#dlg-setup').close(); }),
+    'finish-setup': () => act(async () => { await saveConfig({ onboarded: true }); closeDialog($('#dlg-setup')); }),
     copy: (el) => navigator.clipboard.writeText(el.dataset.text).then(() => toast('Copied. Paste it into PowerShell with right-click.')),
     'copy-ai': (el) => navigator.clipboard.writeText(aiPrompt(el.dataset.agent)).then(() => toast('Copied. Paste it into ChatGPT, Claude or Gemini and follow along.')),
     'agent-reset': (el) => act(async () => { await api('/api/reset-cooldown', { agentId: el.dataset.agent }); await refresh(); toast(`${agentName(el.dataset.agent)} will be tried again.`); }),
@@ -1532,8 +1533,8 @@
     const ex = ev.target.closest('[data-example]');
     if (ex) { $('#instruction').value = ex.dataset.example; $('#instruction').focus(); return; }
     const close = ev.target.closest('[data-close]');
-    if (close) { close.closest('dialog').close(); return; }
-    if (ev.target.tagName === 'DIALOG') { ev.target.close(); return; }
+    if (close) { closeDialog(close.closest('dialog')); return; }
+    if (ev.target.tagName === 'DIALOG') { closeDialog(ev.target); return; }
     const el = ev.target.closest('[data-action]');
     if (!el || el.tagName === 'INPUT') return;
     handlers[el.dataset.action]?.(el);
@@ -1549,6 +1550,11 @@
     if (el.id === 'baton-file-input') { uploadFiles(el.files); el.value = ''; }
     if (el.id === 'set-smart') act(() => saveConfig({ smartRouting: el.checked }));
   });
+  // The dialog 'close' event isn't reliable in every browser shell, so closes we trigger refresh the welcome directly.
+  function closeDialog(dlg) {
+    dlg.close();
+    if (!$('#welcome').hidden) refresh().catch(() => {});
+  }
   document.querySelectorAll('dialog').forEach((dlg) => dlg.addEventListener('close', () => { if (!$('#welcome').hidden) refresh().catch(() => {}); }));
   $('#search-input').addEventListener('input', runSearch);
   $('#search-input').addEventListener('keydown', (ev) => {
